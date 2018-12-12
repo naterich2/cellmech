@@ -1,9 +1,0 @@
-[modLink params]
-
-force_limit = 10.0
-p_add       = 10.0
-p_del       = 0.05
-anis        = 0.0
-chkx        = True
-Ftgt            = 10.0
-adhesionAdjust  = 0.01

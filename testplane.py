@@ -24,29 +24,29 @@ def generate_initial_random(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0ma
     if N is None:
         N = int(L ** 2)
 
-    c = Configuration(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
-                      dims=dims)
+    c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
+                      dims=dims, issubs=False)
 
     for ni in range(N):
         while True:
             R1 = generatePoint(L)
             OK = True
             for nj in range(ni):
-                d = np.linalg.norm(c.nodesX[nj] - R1)
+                d = np.linalg.norm(c.mynodes.nodesX[nj] - R1)
                 if d < d0min:
                     OK = False
                     break
             if OK:
                 break
-        c.nodesX[ni] = R1
+        c.mynodes.nodesX[ni] = R1
     return c
 
 def generate_initial_bilayer(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, dims):
     if N is None:
         N = int(2 * (L ** 2))
 
-    c = Configuration(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
-                      dims=dims)
+    c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
+                      dims=dims, issubs=False)
 
     for ni in range(N):
         while True:
@@ -55,13 +55,13 @@ def generate_initial_bilayer(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0m
                 R1[2] = d0_0
             OK = True
             for nj in range(ni):
-                d = np.linalg.norm(c.nodesX[nj] - R1)
+                d = np.linalg.norm(c.mynodes.nodesX[nj] - R1)
                 if d < d0min:
                     OK = False
                     break
             if OK:
                 break
-        c.nodesX[ni] = R1
+        c.mynodes.nodesX[ni] = R1
     return c
 
 
@@ -89,10 +89,10 @@ def generate_default_initial(L=10, N=None):
 
 def generate_from_default(R, L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, dims):
     N = len(R)
-    c = Configuration(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
-                      dims=dims)
+    c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
+                      dims=dims, issubs=False)
     for ni in range(N):
-        c.nodesX[ni] = R[ni]
+        c.mynodes.nodesX[ni] = R[ni]
 
     return c
 
@@ -102,14 +102,15 @@ def generate_initial_cube(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max,
         print "N decission overriden because of possible conflict with Lmax"
     N = int(L ** 3)
 
-    c = Configuration(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
-                      dims=dims)
+    c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
+                      dims=dims, issubs=False)
 
     x0 = - stretch * L / 2.
     for ni in range(L):
         for nj in range(L):
             for nk in range(L):
-                c.nodesX[L * L * ni + L * nj + nk] = np.array([x0 + stretch * ni, x0 + stretch * nj, x0 + stretch * nk])
+                c.mynodes.nodesX[L * L * ni + L * nj + nk] = \
+                    np.array([x0 + stretch * ni, x0 + stretch * nj, x0 + stretch * nk])
     return c
 
 if __name__ == '__main__':
@@ -146,17 +147,17 @@ if __name__ == '__main__':
                                           d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
     """
 
-    config.updateDists(config.nodesX)
+    config.mynodes.updateDists(config.mynodes.nodesX)
 
-    for i, j in VoronoiNeighbors(config.nodesX, vodims=2):
-        if np.linalg.norm(config.nodesX[i] - config.nodesX[j]) <= d0max:
-            config.addlink(i, j)
+    for i, j in VoronoiNeighbors(config.mynodes.nodesX, vodims=2):
+        if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
+            config.mynodes.addlink(i, j)
 
 
     # cProfile.run('config.timeevo(20, record=True)', sort='cumtime')
 
     configs, links, nodeforces, linkforces, ts = config.timeevo(200., record=True)
-    config.savedata()
+    # config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
 

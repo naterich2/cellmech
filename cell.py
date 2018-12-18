@@ -112,12 +112,12 @@ def VoronoiNeighbors(positions, vodims=2):
 class NodeConfiguration:
     def __init__(self, num, dims=3, isF0=False, isanchor=False):
         if dims == 2:
-            self.updateLinkForces = lambda PHI, TCell, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds: \
-                self.updateLinkForces2D(PHI, TCell, TSubs, Bend, K, D0, Nodeinds)
+            self.updateLinkForces = lambda PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds: \
+                self.updateLinkForces2D(PHI, T, Bend, K, D0, Nodeinds)
             self.dims = dims
         elif dims == 3:
-            self.updateLinkForces = lambda PHI, TCell, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds: \
-                self.updateLinkForces3D(PHI, TCell, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds)
+            self.updateLinkForces = lambda PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds: \
+                self.updateLinkForces3D(PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds)
             self.dims = dims
         else:
             print "Oops! Wrong number of dimensions here."
@@ -137,7 +137,7 @@ class NodeConfiguration:
         self.F0 = np.zeros((self.N, 3))                 # external force on node
         self.isanchor = isanchor
         self.X0 = np.zeros((self.N, 3))                 # node anchor, must be set if needed!
-        self.knode = np.zeros((self.N))                 # spring constant of node to anchor point, defaults to 0
+        self.knode = np.zeros((self.N,))                 # spring constant of node to anchor point, defaults to 0
 
         """description of links"""
         # islink[i, j] is True if nodes i and j are connected via link
@@ -154,18 +154,20 @@ class NodeConfiguration:
         self.Mlink = np.zeros((self.N, self.N, 3))      # Torsion from link on node
         self.Flink = np.zeros((self.N, self.N, 3))      # Force from link on node
 
+        self.nodesum = lambda: 0
+
         self.reset_nodesum()
 
     def reset_nodesum(self):
         # add forces (external or anchor based) to nodes
-        if self.isF0 == False and self.isanchor == False:
-            self.nodesum = lambda : np.sum(self.Flink, axis=1)
-        elif self.isF0 == True and self.isanchor == False:
-            self.nodesum = lambda : np.sum(self.Flink, axis=1) + self.F0
-        elif self.isF0 == False and self.isanchor == True:
-            self.nodesum = lambda : np.sum(self.Flink, axis=1) + self.knode * (self.X0 - self.nodesX)
-        elif self.isF0 == True and self.isanchor == True:
-            self.nodesum = lambda : np.sum(self.Flink, axis=1) + self.F0 + self.knode * (self.X0 - self.nodesX)
+        if self.isF0 is False and self.isanchor is False:
+            self.nodesum = lambda: np.sum(self.Flink, axis=1)
+        elif self.isF0 is True and self.isanchor is False:
+            self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.F0
+        elif self.isF0 is False and self.isanchor is True:
+            self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.knode * (self.X0 - self.nodesX)
+        elif self.isF0 is True and self.isanchor is True:
+            self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.F0 + self.knode * (self.X0 - self.nodesX)
 
     def addlink(self, ni, mi, t1=None, t2=None, d0=None, k=None, bend=None, twist=None, n=None, norm1=None, norm2=None):
         self.islink[ni, mi], self.islink[mi, ni] = True, True
@@ -279,12 +281,12 @@ class NodeConfiguration:
 class SubsConfiguration:
     def __init__(self, num_cells, num_subs, dims=3):
         if dims == 2:
-            self.updateLinkForces = lambda PHI, Phisubs, T, TSubs, Norm, NormSubs, Bend, Twist, K, D0, Nodeinds: \
+            self.updateLinkForces = lambda PHI, Phisubs, T, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds: \
                 self.updateLinkForces2D(PHI, Phisubs, T, TSubs, Bend, K, D0, Nodeinds)
             self.dims = dims
         elif dims == 3:
-            self.updateLinkForces = lambda PHI, Phisubs, T, TSubs, Norm, NormSubs, Bend, Twist, K, D0, Nodeinds: \
-                self.updateLinkForces3D(PHI, Phisubs, T, TSubs, Norm, NormSubs, Bend, Twist, K, D0, Nodeinds)
+            self.updateLinkForces = lambda PHI, Phisubs, T, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds: \
+                self.updateLinkForces3D(PHI, Phisubs, T, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds)
             self.dims = dims
         else:
             print "Oops! Wrong number of dimensions here."
@@ -351,7 +353,7 @@ class SubsConfiguration:
         if norm2 is None:
             norm2 = np.dot(RotMat2, n)
         self.normcell[ni, mi] = norm1
-        self.normsubs[ni, m] = norm2
+        self.normsubs[ni, mi] = norm2
 
     def removelink(self, ni, mi):
         self.islink[ni, mi] = False
@@ -413,10 +415,10 @@ class SubsConfiguration:
         NormSubsTilde = getNormvec(NormSubsNow - np.einsum("ij, ij -> i", NormSubsNow, E)[:, None] * E)
 
         self.Mcelllink[Nodeinds] = Bend[..., None] * np.cross(TCellNow, E) + \
-                                   Twist[..., None] * np.cross(NormCellTilde, NormSubsTilde)  # Eq 5
+                                   Twist[..., None] * np.cross(NormCellTilde, NormSubsTilde)  # Eq 5 for cells
 
         self.Msubslink[Nodeinds] = Bend[..., None] * np.cross(TSubsNow, E) + \
-                                   Twist[..., None] * np.cross(NormSubsTilde, NormCellTilde)  # Eq 5
+                                   Twist[..., None] * np.cross(NormSubsTilde, NormCellTilde)  # Eq 5 for substrate
 
         M = self.Mcelllink[Nodeinds] + self.Msubslink[Nodeinds]
 
@@ -450,7 +452,7 @@ class CellMech:
         # functions for randoms in default_update_d0
         self.lowers = np.tril_indices(self.N, -1)
         self.randomsummand = np.zeros((self.N, self.N))
-        self.randomlength = self.N * (self.N - 1) / 2
+        self.randomlength = int(self.N * (self.N - 1) / 2)
 
         """stuff for documentation"""
         self.nodesnap = []
@@ -462,9 +464,9 @@ class CellMech:
         self.mynodes = NodeConfiguration(num=num_cells, dims=dims, isF0=isF0, isanchor=isanchor)
         if issubs:
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs)
-            self.mechEquilibrium = lambda : self.mechEquilibrium_withsubs()
+            self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
         else:
-            self.mechEquilibrium = lambda : self.mechEquilibrium_nosubs()
+            self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs()
 
     def mechEquilibrium_nosubs(self):
         x = self.mynodes.nodesX.copy()
@@ -502,7 +504,7 @@ class CellMech:
         for i in range(self.nmax):
             k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
             ks1, js1, fs1 = self.mysubs.getForces(x, phi, phisubs, tcell, tsubs, normcell, normsubs,
-                                             bend2, twist2, k2, d02, nodeinds2)
+                                                  bend2, twist2, k2, d02, nodeinds2)
             k1 += ks1
             j1 += js1
             Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv

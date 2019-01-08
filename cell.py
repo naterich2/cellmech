@@ -154,6 +154,12 @@ class NodeConfiguration:
         self.Mlink = np.zeros((self.N, self.N, 3))      # Torsion from link on node
         self.Flink = np.zeros((self.N, self.N, 3))      # Force from link on node
 
+        """stuff for documentation"""
+        self.nodesnap = []
+        self.linksnap = []
+        self.fnodesnap = []
+        self.flinksnap = []
+
         self.nodesum = lambda: 0
 
         self.reset_nodesum()
@@ -170,6 +176,7 @@ class NodeConfiguration:
             self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.F0 + self.knode * (self.X0 - self.nodesX)
 
     def addlink(self, ni, mi, t1=None, t2=None, d0=None, k=None, bend=None, twist=None, n=None, norm1=None, norm2=None):
+
         self.islink[ni, mi], self.islink[mi, ni] = True, True
 
         if k is None:
@@ -277,21 +284,18 @@ class NodeConfiguration:
         self.Mnode = np.sum(self.Mlink, axis=1)
         return self.Fnode, self.Mnode
 
+    def getLinkList(self):
+        allLinks0, allLinks1 = np.where(self.islink == True)
+        return np.array([[allLinks0[i], allLinks1[i]] for i in range(len(allLinks0)) if allLinks0[i] > allLinks1[i]])
+
+    def getLinkTuple(self):
+        allLinks0, allLinks1 = np.where(self.islink == True)
+        inds = np.where(allLinks0 > allLinks1)
+        return allLinks0[inds], allLinks1[inds]
+
 
 class SubsConfiguration:
     def __init__(self, num_cells, num_subs, dims=3):
-        if dims == 2:
-            self.updateLinkForces = lambda PHI, Phisubs, T, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds: \
-                self.updateLinkForces2D(PHI, Phisubs, T, TSubs, Bend, K, D0, Nodeinds)
-            self.dims = dims
-        elif dims == 3:
-            self.updateLinkForces = lambda PHI, Phisubs, T, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds: \
-                self.updateLinkForces3D(PHI, Phisubs, T, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds)
-            self.dims = dims
-        else:
-            print "Oops! Wrong number of dimensions here."
-            sys.exit()
-
         self.dims = dims
         # variables to store cell number and cell positions and angles
         self.N = num_cells
@@ -320,6 +324,11 @@ class SubsConfiguration:
         self.Mcelllink = np.zeros((self.N, self.Nsubs, 3))  # Torsion from link on cell node
         self.Msubslink = np.zeros((self.N, self.Nsubs, 3))  # Torsion from link on subs node
         self.Flink = np.zeros((self.N, self.Nsubs, 3))  # Force from link on cell node
+
+        """stuff for documentation"""
+        self.linksnap = []
+        self.fnodesnap = []
+        self.flinksnap = []
 
     def addlink(self, ni, mi, cellphi, t1=None, d0=None, k=None, bend=None, twist=None, n=None, norm1=None, norm2=None):
         self.islink[ni, mi] = True
@@ -381,22 +390,7 @@ class SubsConfiguration:
 
         return tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds
 
-    def updateLinkForces2D(self, PHI, PHISubs, TCell, TSubs, Bend, K, D0, Nodeinds):
-        E = self.e[Nodeinds]
-        D = self.d[Nodeinds]
-
-        # rotated version of t to fit current setup
-        TCellNow = np.einsum("ijk, ik -> ij", getRotMatArray(PHI[Nodeinds[0]]), TCell)
-        TSubsNow = np.einsum("ijk, ik -> ij", getRotMatArray(PHISubs[Nodeinds[1]]), TSubs)
-
-        self.Mcelllink[Nodeinds] = Bend[..., None] * np.cross(TCellNow, E)  # Eq 3
-        self.Msubslink[Nodeinds] = Bend[..., None] * np.cross(TSubsNow, -E)
-
-        M = self.Mcelllink[Nodeinds] + self.Msubslink[Nodeinds]
-
-        self.Flink[Nodeinds] = (K * (D - D0))[..., None] * E + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
-
-    def updateLinkForces3D(self, PHI, PHISubs, TCell, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds):
+    def updateLinkForces(self, PHI, PHISubs, TCell, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds):
         E = self.e[Nodeinds]
         D = self.d[Nodeinds]
         NodesPhiCell = PHI[Nodeinds[0]]
@@ -412,22 +406,31 @@ class SubsConfiguration:
 
         # calculated new vector \bm{\tilde{n}}_{A, l}
         NormCellTilde = getNormvec(NormCellNow - np.einsum("ij, ij -> i", NormCellNow, E)[:, None] * E)
-        NormSubsTilde = getNormvec(NormSubsNow - np.einsum("ij, ij -> i", NormSubsNow, E)[:, None] * E)
+        NormSubsTilde = getNormvec(NormSubsNow - np.einsum("ij, ij -> i", NormSubsNow, -E)[:, None] * (-E))
 
         self.Mcelllink[Nodeinds] = Bend[..., None] * np.cross(TCellNow, E) + \
                                    Twist[..., None] * np.cross(NormCellTilde, NormSubsTilde)  # Eq 5 for cells
 
-        self.Msubslink[Nodeinds] = Bend[..., None] * np.cross(TSubsNow, E) + \
+        self.Msubslink[Nodeinds] = Bend[..., None] * np.cross(TSubsNow, -E) + \
                                    Twist[..., None] * np.cross(NormSubsTilde, NormCellTilde)  # Eq 5 for substrate
 
-        M = self.Mcelllink[Nodeinds] + self.Msubslink[Nodeinds]
+        M = self.Mcelllink + self.Msubslink
+        M = M[Nodeinds]
 
         self.Flink[Nodeinds] = (K * (D - D0))[..., None] * E + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
 
     def getForces(self, X, Phi, Phisubs, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds):
         self.updateDists(X)
         self.updateLinkForces(Phi, Phisubs, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds)
-        return np.sum(self.Flink, axis=1), np.sum(self.Mcelllink, axis=1), np.sum(self.Msubslink, axis=1)
+        self.Fnode = np.sum(self.Flink, axis=0)
+        return np.sum(self.Flink, axis=1), np.sum(self.Mcelllink, axis=1), np.sum(self.Msubslink, axis=0)
+
+    def getLinkList(self):
+        allLinks0, allLinks1 = np.where(self.islink == True)
+        return np.array([[allLinks0[i], allLinks1[i]] for i in range(len(allLinks0))])
+
+    def getLinkTuple(self):
+        return np.where(self.islink == True)
 
 
 class CellMech:
@@ -435,6 +438,7 @@ class CellMech:
                  p_del=0.2, chkx=False, d0max=2., dims=3, isF0=False, isanchor=False, issubs=True):
 
         self.dims = dims
+        self.issubs = issubs
         # variables to store cell number and cell positions and angles
         self.N = num_cells
         self.N_inv = 1. / self.N
@@ -455,18 +459,17 @@ class CellMech:
         self.randomlength = int(self.N * (self.N - 1) / 2)
 
         """stuff for documentation"""
-        self.nodesnap = []
-        self.linksnap = []
-        self.fnodesnap = []
-        self.flinksnap = []
         self.snaptimes = []
 
         self.mynodes = NodeConfiguration(num=num_cells, dims=dims, isF0=isF0, isanchor=isanchor)
-        if issubs:
+
+        if self.issubs:
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
+            self.makesnap = lambda t: self.makesnap_withsubs(t)
         else:
             self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs()
+            self.makesnap = lambda t: self.makesnap_nosubs(t)
 
     def mechEquilibrium_nosubs(self):
         x = self.mynodes.nodesX.copy()
@@ -500,11 +503,12 @@ class CellMech:
         h = self.dt
         steps = 0
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
-        tcell, tsubs, normcell, normsubs, bend2, twist2, k2, d02, nodeinds2 = self.mysubs.compactStuffINeed()
+        tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
         for i in range(self.nmax):
+            print i
             k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
             ks1, js1, fs1 = self.mysubs.getForces(x, phi, phisubs, tcell, tsubs, normcell, normsubs,
-                                                  bend2, twist2, k2, d02, nodeinds2)
+                                                  bends, twists, ks, d0s, nodeindss)
             k1 += ks1
             j1 += js1
             Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
@@ -514,17 +518,17 @@ class CellMech:
 
             k2, j2 = self.mynodes.getForces(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
             ks2, js2, fs2 = self.mysubs.getForces(x + k1 * 0.5, phi + j1 * 0.5, phisubs + fs1 * 0.5,
-                                                  tcell, tsubs, normcell, normsubs, bend2, twist2, k2, d02, nodeinds2)
+                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
             k2, j2, fs2 = h * (k2 + ks2), h * (j2 + js2), h * fs2
 
             k3, j3 = self.mynodes.getForces(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
             ks3, js3, fs3 = self.mysubs.getForces(x + k2 * 0.5, phi + j2 * 0.5, phisubs + fs2 * 0.5,
-                                                  tcell, tsubs, normcell, normsubs, bend2, twist2, k2, d02, nodeinds2)
+                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
             k3, j3, fs3 = h * (k3 + ks3), h * (j3 + js3), h * fs3
 
             k4, j4 = self.mynodes.getForces(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
             ks4, js4, fs4 = self.mysubs.getForces(x + k3, phi + j3, phisubs + fs3,
-                                                  tcell, tsubs, normcell, normsubs, bend2, twist2, k2, d02, nodeinds2)
+                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
             k4, j4, fs4 = h * (k4 + ks4), h * (j4 + js4), h * fs4
 
             x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
@@ -536,17 +540,8 @@ class CellMech:
         self.mysubs.nodesPhi = phisubs
         return (steps + 1) * h
 
-    def getLinkList(self):
-        allLinks0, allLinks1 = np.where(self.mynodes.islink == True)
-        return np.array([[allLinks0[i], allLinks1[i]] for i in range(len(allLinks0)) if allLinks0[i] > allLinks1[i]])
-
-    def getLinkTuple(self):
-        allLinks0, allLinks1 = np.where(self.mynodes.islink == True)
-        inds = np.where(allLinks0 > allLinks1)
-        return allLinks0[inds], allLinks1[inds]
-
     def intersect_all(self):
-        allLinks0, allLinks1 = self.getLinkTuple()
+        allLinks0, allLinks1 = self.mynodes.getLinkTuple()
 
         A = self.mynodes.nodesX[allLinks0][:, None, :]
         B = self.mynodes.nodesX[allLinks1][:, None, :]
@@ -582,7 +577,7 @@ class CellMech:
         return clashlinks
 
     def intersect_withone(self, n1, n2):
-        allLinks0, allLinks1 = self.getLinkTuple()
+        allLinks0, allLinks1 = self.mynodes.getLinkTuple()
 
         A = self.mynodes.nodesX[n1][None, :]
         B = self.mynodes.nodesX[n2][None, :]
@@ -634,7 +629,7 @@ class CellMech:
             self.mynodes.removelink(badlink[0], badlink[1])
 
     def delLinkList(self):
-        linklist = self.getLinkList()
+        linklist = self.mynodes.getLinkList()
         to_del = []
         for link in linklist:
             if self.mynodes.d[link[0], link[1]] < self.mynodes.d0[link[0], link[1]]:
@@ -711,25 +706,47 @@ class CellMech:
         self.default_update_d0(dt)
         return dt
 
-    def makesnap(self, t):
-        self.nodesnap.append(self.mynodes.nodesX.copy())
-        self.fnodesnap.append(self.mynodes.Fnode.copy())
-        linkList = self.getLinkList()
-        self.linksnap.append(linkList)
-        self.flinksnap.append(scipy.linalg.norm(self.mynodes.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
+    def makesnap_nosubs(self, t):
+        self.mynodes.nodesnap.append(self.mynodes.nodesX.copy())
+        self.mynodes.fnodesnap.append(self.mynodes.Fnode.copy())
+        linkList = self.mynodes.getLinkList()
+        self.mynodes.linksnap.append(linkList)
+        self.mynodes.flinksnap.append(scipy.linalg.norm(self.mynodes.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
+        self.snaptimes.append(t)
+
+    def makesnap_withsubs(self, t):
+        self.mynodes.nodesnap.append(self.mynodes.nodesX.copy())
+        self.mynodes.fnodesnap.append(self.mynodes.Fnode.copy())
+        self.mysubs.fnodesnap.append(self.mysubs.Fnode.copy())
+        linkList = self.mynodes.getLinkList()
+        self.mynodes.linksnap.append(linkList)
+        self.mynodes.flinksnap.append(scipy.linalg.norm(self.mynodes.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
+        linkList = self.mysubs.getLinkList()
+        self.mysubs.linksnap.append(linkList)
+        self.mysubs.flinksnap.append(scipy.linalg.norm(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
         self.snaptimes.append(t)
 
     def savedata(self, savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True, savet=True):
         if savenodes_r:
-            np.save("nodesr", self.nodesnap)
+            np.save("nodesr", self.mynodes.nodesnap)
         if savenodes_f:
-            np.save("nodesf", self.fnodesnap)
+            np.save("nodesf", self.mynodes.fnodesnap)
+        if savelinks:
+            np.save("links", self.mynodes.linksnap)
+        if savelinks_f:
+            np.save("linksf", self.mynodes.flinksnap)
         if savet:
             np.save("ts", self.snaptimes)
-        if savelinks:
-            np.save("links", self.linksnap)
-        if savelinks_f:
-            np.save("linksf", self.flinksnap)
+
+        if self.issubs:
+            if savenodes_r:
+                np.save("subsnodesr", self.mysubs.nodesX)
+            if savenodes_f:
+                np.save("subsnodesF", self.mysubs.fnodesnap)
+            if savelinks:
+                np.save("subslinks", self.mysubs.linksnap)
+            if savelinks_f:
+                np.save("subslinksf", self.mysubs.flinksnap)
 
     def timeevo(self, tmax, isinit=True, isfinis=True, record=False):
         t = 0.
@@ -747,10 +764,16 @@ class CellMech:
                 self.makesnap(t)
             update_progress(t / tmax)
         if record and isfinis:
-            self.nodesnap = np.array(self.nodesnap)
-            self.fnodesnap = np.array(self.fnodesnap)
-            self.snaptimes = np.array(self.snaptimes)
-        return self.nodesnap, self.linksnap, self.fnodesnap, self.flinksnap, self.snaptimes
+            self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
+            self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
+            self.mynodes.snaptimes = np.array(self.snaptimes)
+        if self.issubs:
+            return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
+                   self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap, \
+                   self.snaptimes
+        else:
+            return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
+                   self.snaptimes
 
     def oneequil(self):
         x = self.mynodes.nodesX.copy()
@@ -776,6 +799,55 @@ class CellMech:
             phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.
             steps += 1
         self.mynodes.nodesPhi = phi
-        self.mynodes.nodesnap = np.array(self.nodesnap)
-        self.mynodes.fnodesnap = np.array(self.fnodesnap)
-        return self.nodesnap, self.linksnap, self.fnodesnap, self.flinksnap, self.snaptimes
+        self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
+        self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
+        return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
+               self.snaptimes
+
+    def oneequil_withsubs(self):
+        x = self.mynodes.nodesX.copy()
+        phi = self.mynodes.nodesPhi.copy()
+        phisubs = self.mysubs.nodesPhi.copy()
+        h = self.dt
+        steps = 0
+        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
+        tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
+        for i in range(self.nmax):
+            self.mynodes.nodesX = x
+            self.makesnap(i)
+            k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
+            ks1, js1, fs1 = self.mysubs.getForces(x, phi, phisubs, tcell, tsubs, normcell, normsubs,
+                                                  bends, twists, ks, d0s, nodeindss)
+            k1 += ks1
+            j1 += js1
+            Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
+            if Q < self.qmin:
+                pass
+                # break
+            k1, j1, fs1 = h * k1, h * j1, h * fs1
+
+            k2, j2 = self.mynodes.getForces(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            ks2, js2, fs2 = self.mysubs.getForces(x + k1 * 0.5, phi + j1 * 0.5, phisubs + fs1 * 0.5,
+                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
+            k2, j2, fs2 = h * (k2 + ks2), h * (j2 + js2), h * fs2
+
+            k3, j3 = self.mynodes.getForces(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            ks3, js3, fs3 = self.mysubs.getForces(x + k2 * 0.5, phi + j2 * 0.5, phisubs + fs2 * 0.5,
+                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
+            k3, j3, fs3 = h * (k3 + ks3), h * (j3 + js3), h * fs3
+
+            k4, j4 = self.mynodes.getForces(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
+            ks4, js4, fs4 = self.mysubs.getForces(x + k3, phi + j3, phisubs + fs3,
+                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
+            k4, j4, fs4 = h * (k4 + ks4), h * (j4 + js4), h * fs4
+
+            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
+            phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.
+            phisubs += (fs1 + 2 * fs2 + 2 * fs3 + fs4) / 6.
+            steps += 1
+        self.mynodes.nodesX = x
+        self.mynodes.nodesPhi = phi
+        self.mysubs.nodesPhi = phisubs
+        return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
+               self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap, \
+               self.snaptimes

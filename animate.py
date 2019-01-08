@@ -4,13 +4,15 @@ from mayavi import mlab
 import scipy.linalg
 import numpy as np
 
+import sys
+
 
 def showconfig(c, l, nF, fl, figure=None, figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0),
                figsize=(1000, 1000), cmap='viridis', vmaxlinks=5, vmaxcells=5, cbar=False):
     if figure is None:
-         fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
+        fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
     else:
-         fig = figure
+        fig = figure
     x, y, z = c.T
     xl, yl, zl = c[l[..., 0]].T
     rxl, ryl, rzl = (c[l[..., 1]] - c[l[..., 0]]).T
@@ -18,6 +20,7 @@ def showconfig(c, l, nF, fl, figure=None, figureindex=0, bgcolor=(1, 1, 1), fgco
 
     cells = mlab.points3d(x, y, z, fc, scale_factor=1, opacity=0.5, resolution=16, scale_mode='none', vmin=0.,
                           colormap=cmap, vmax=vmaxcells)
+
     links = mlab.quiver3d(xl, yl, zl, rxl, ryl, rzl, scalars=fl, mode='2ddash', line_width=4., scale_mode='vector',
                           scale_factor=1, colormap=cmap, vmin=0., vmax=vmaxlinks)
     links.glyph.color_mode = "color_by_scalar"
@@ -26,12 +29,39 @@ def showconfig(c, l, nF, fl, figure=None, figureindex=0, bgcolor=(1, 1, 1), fgco
     return cells, links
 
 
+def pack(A, B):
+    # concatenates lists of numpy arrays. watch out for shapes!
+    try:
+        C = []
+        for ind in range(len(A)):
+            C.append(np.concatenate((A[ind], B[ind])))
+        return C
+    except TypeError:
+        return A
+
+
 @mlab.animate(delay=70)
-def animateconfigs(Configs, Links, nodeForces, linkForces, ts, figureindex=0, bgcolor=(1, 1, 1),
-                   fgcolor=(0, 0, 0), figsize=(1000, 1000), cmap='viridis', cbar=False):
+def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
+                   Subs=None, SubsLinks=None, subsnodeForces=None, subslinkForces=None,
+                   figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), figsize=(1000, 1000),
+                   cmap='viridis', cbar=False):
     fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
+
+    Subs = np.tile(Subs, (len(Configs), 1, 1))
+    try:
+        for t in range(len(SubsLinks)):
+            SubsLinks[t][:, 1] += len(Links[t])
+    except TypeError:
+        print "excepted"
+
+    Configs = pack(Configs, Subs)
+    Links = pack(Links, SubsLinks)
+    nodeForces = pack(nodeForces, subsnodeForces)
+    linkForces = pack(linkForces, subslinkForces)
+
     vmaxcells = np.max(scipy.linalg.norm(nodeForces, axis=2))
     vmaxlinks = max([np.max(timestep) for timestep in linkForces])
+
     cells, links = showconfig(Configs[0], Links[0], nodeForces[0], linkForces[0], fig,
                               vmaxcells=vmaxcells, vmaxlinks=vmaxlinks)
     text = mlab.title('0.0', height=.9)
@@ -47,5 +77,3 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts, figureindex=0, bg
             links.mlab_source.reset(x=xl, y=yl, z=zl, u=rxl, v=ryl, w=rzl, scalars=fl)
             text.set(text='{}'.format(round(t, 2)))
             yield
-
-

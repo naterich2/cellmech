@@ -4,8 +4,6 @@ from mayavi import mlab
 import scipy.linalg
 import numpy as np
 
-import sys
-
 
 def showconfig(c, l, nF, fl, figure=None, figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0),
                figsize=(1000, 1000), cmap='viridis', vmaxlinks=5, vmaxcells=5, cbar=False):
@@ -50,7 +48,7 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
     Subs = np.tile(Subs, (len(Configs), 1, 1))
     try:
         for t in range(len(SubsLinks)):
-            SubsLinks[t][:, 1] += len(Links[t])
+            SubsLinks[t][:, 1] += len(Configs[t])
     except TypeError:
         print "excepted"
 

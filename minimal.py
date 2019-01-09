@@ -52,7 +52,7 @@ c.mysubs.addlink(1, 3, c.mynodes.nodesPhi[1], d0=1.)
 c.mysubs.addlink(2, 3, c.mynodes.nodesPhi[2], d0=1.)
 
 
-configs, links, nodeforces, linkforces, subs, subslinks, subsnodeforces, subslinkforces, ts = c.oneequil_withsubs()
+configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = c.oneequil_withsubs()
 
 animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
 mlab.show()

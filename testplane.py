@@ -41,6 +41,7 @@ def generate_initial_random(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0ma
         c.mynodes.nodesX[ni] = R1
     return c
 
+
 def generate_initial_random_wsubs(L, N, Nsubs, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, dims):
     if N is None:
         N = int(L ** 2)
@@ -66,7 +67,7 @@ def generate_initial_random_wsubs(L, N, Nsubs, dt, nmax, qmin, d0_0, p_add, p_de
     for ni in range(N):
         while True:
             R1 = generatePoint(L)
-            R1[2] = d0_0
+            R1[2] = -d0_0
             OK = True
             for nj in range(ni):
                 d = np.linalg.norm(c.mysubs.nodesX[nj] - R1)
@@ -170,10 +171,11 @@ if __name__ == '__main__':
     p_del = 0.1  # base rate to delete links
     chkx = False  # check if links overlap?
 
-
     config = generate_initial_random_wsubs(L=Lmax, N=N, Nsubs=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
-                                           p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
+                                          p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
 
+    # config = generate_initial_random(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
+    #                                       p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
 
     """
     R = [[i, 0, 0] for i in range(13)]
@@ -186,6 +188,7 @@ if __name__ == '__main__':
     """
 
     config.mynodes.updateDists(config.mynodes.nodesX)
+
     config.mysubs.updateDists(config.mynodes.nodesX)
 
     allnodes = np.concatenate((config.mynodes.nodesX, config.mysubs.nodesX), axis=0)
@@ -197,16 +200,21 @@ if __name__ == '__main__':
             elif (i >= config.N) and (j >= config.N):
                 continue
             else:
-                if i < j:
-                    config.mysubs.addlink(i, j - config.N, config.mynodes.nodesPhi[i])
-                else:
-                    config.mysubs.addlink(j, i - config.N, config.mynodes.nodesPhi[j])
+                config.mysubs.addlink(i, j - config.N, config.mynodes.nodesPhi[i])
+
+    """
+    for i, j in VoronoiNeighbors(config.mynodes.nodesX):
+        if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
+            config.mynodes.addlink(i, j)
+    """
 
     # cProfile.run('config.timeevo(20, record=True)', sort='cumtime')
 
-    configs, links, nodeforces, linkforces, subs, subslinks, subsnodeforces, subslinkforces, ts = \
-        config.timeevo(10., record=True)
-    # config.savedata()
+    configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
+        config.timeevo(50., record=True)
+
+    # configs, links, nodeforces, linkforces, ts = config.timeevo(10., record=True)
+    config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
     mlab.show()
 

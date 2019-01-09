@@ -467,9 +467,11 @@ class CellMech:
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
             self.makesnap = lambda t: self.makesnap_withsubs(t)
+            self.addLinkList = lambda : self.addLinkList_withsubs()
         else:
             self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs()
             self.makesnap = lambda t: self.makesnap_nosubs(t)
+            self.addLinkList = lambda : self.addLinkList_nosubs()
 
     def mechEquilibrium_nosubs(self):
         x = self.mynodes.nodesX.copy()
@@ -505,7 +507,6 @@ class CellMech:
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
         tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
         for i in range(self.nmax):
-            print i
             k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
             ks1, js1, fs1 = self.mysubs.getForces(x, phi, phisubs, tcell, tsubs, normcell, normsubs,
                                                   bends, twists, ks, d0s, nodeindss)
@@ -637,9 +638,17 @@ class CellMech:
             f = scipy.linalg.norm(self.mynodes.Flink[link[0], link[1]])
             p = exp(f / self.force_limit)
             to_del.append((link, p))
+        if self.issubs:
+            linklist = self.mysubs.getLinkList()
+            for link in linklist:
+                if self.mysubs.d[link[0], link[1]] < self.mysubs.d0[link[0], link[1]]:
+                    continue
+                f = scipy.linalg.norm(self.mysubs.Flink[link[0], link[1]])
+                p = exp(f / self.force_limit)
+                to_del.append((link, p))
         return to_del
 
-    def tryLink(self, n1, n2):
+    def tryLink_notsubs(self, n1, n2):
         if self.mynodes.islink[n1, n2]:
             return -1
         if self.dims == 2:
@@ -650,10 +659,39 @@ class CellMech:
             return -1  # false
         return d  # true: d>0
 
-    def addLinkList(self):
+    def tryLink_issubs(self, n1, n2):
+        if self.mysubs.islink[n1, n2]:
+            return -1
+        """
+        if self.dims == 2:
+            if self.intersect_withone(n1, n2):
+                return -1  # false
+        """
+        d = scipy.linalg.norm(self.mynodes.nodesX[n1] - self.mysubs.nodesX[n2])
+        if d > self.d0max:
+            return -1  # false
+        return d  # true: d>0
+
+    def addLinkList_nosubs(self):
         to_add = []
         for i, j in VoronoiNeighbors(self.mynodes.nodesX, vodims=self.dims):
-            d = self.tryLink(i, j)
+            d = self.tryLink_notsubs(i, j)
+            if d > 1e-5:
+                p = (1 - (d / self.d0max))
+                to_add.append(((i, j), p))
+        return to_add
+
+    def addLinkList_withsubs(self):
+        to_add = []
+        allnodes = np.concatenate((self.mynodes.nodesX, self.mysubs.nodesX))
+        for i, j in VoronoiNeighbors(allnodes, vodims=self.dims):
+            if j >= self.N:
+                if i < self.N:
+                    d = self.tryLink_issubs(i, j - self.N)
+                else:
+                    d = -1
+            else:
+                d = self.tryLink_notsubs(i, j)
             if d > 1e-5:
                 p = (1 - (d / self.d0max))
                 to_add.append(((i, j), p))
@@ -681,15 +719,23 @@ class CellMech:
             for (l, p) in to_del:
                 r = r - p * self.p_del
                 if r < 0:
-                    self.mynodes.removelink(l[0], l[1])
-                    return dt
+                    if l[1] < self.N:
+                        self.mynodes.removelink(l[0], l[1])
+                        return dt
+                    else:
+                        self.mysubs.removelink(l[0], l[1] - self.N)
+                        return dt
         r = r - s1
         if r < s2:  # we will add a link
             for ((n1, n2), p) in to_add:
                 r = r - p * self.p_add
                 if r < 0:
-                    self.mynodes.addlink(n1, n2)
-                    return dt
+                    if n2 < self.N:
+                        self.mynodes.addlink(n1, n2)
+                        return dt
+                    else:
+                        self.mysubs.addlink(n1, n2 - self.N, self.mynodes.nodesPhi[n1])
+                        return dt
 
     def default_update_d0(self, dt):
         myrandom = npr.random((self.randomlength, ))
@@ -742,7 +788,7 @@ class CellMech:
             if savenodes_r:
                 np.save("subsnodesr", self.mysubs.nodesX)
             if savenodes_f:
-                np.save("subsnodesF", self.mysubs.fnodesnap)
+                np.save("subsnodesf", self.mysubs.fnodesnap)
             if savelinks:
                 np.save("subslinks", self.mysubs.linksnap)
             if savelinks_f:
@@ -769,8 +815,9 @@ class CellMech:
             self.mynodes.snaptimes = np.array(self.snaptimes)
         if self.issubs:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-                   self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap, \
-                   self.snaptimes
+                   self.snaptimes, \
+                   self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap
+
         else:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes
@@ -822,8 +869,7 @@ class CellMech:
             j1 += js1
             Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
             if Q < self.qmin:
-                pass
-                # break
+                break
             k1, j1, fs1 = h * k1, h * j1, h * fs1
 
             k2, j2 = self.mynodes.getForces(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
@@ -849,5 +895,5 @@ class CellMech:
         self.mynodes.nodesPhi = phi
         self.mysubs.nodesPhi = phisubs
         return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-               self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap, \
-               self.snaptimes
+               self.snaptimes, \
+               self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap

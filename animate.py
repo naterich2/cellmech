@@ -45,12 +45,10 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
                    cmap='viridis', cbar=False):
     fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
 
-    Subs = np.tile(Subs, (len(Configs), 1, 1))
-    try:
+    if Subs is not None:
+        Subs = np.tile(Subs, (len(Configs), 1, 1))
         for t in range(len(SubsLinks)):
             SubsLinks[t][:, 1] += len(Configs[t])
-    except TypeError:
-        print "excepted"
 
     Configs = pack(Configs, Subs)
     Links = pack(Links, SubsLinks)

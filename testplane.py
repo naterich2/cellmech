@@ -80,7 +80,8 @@ def generate_initial_random_wsubs(L, N, Nsubs, dt, nmax, qmin, d0_0, p_add, p_de
 
     return c
 
-def generate_initial_bilayer(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, dims):
+
+def generate_initial_bilayer(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0min, d0max, dims):
     if N is None:
         N = int(2 * (L ** 2))
 
@@ -160,7 +161,7 @@ if __name__ == '__main__':
     bend = 10.0
     twist = 1.0
     dt = 0.01
-    nmax = 3000
+    nmax = 300
     qmin = 0.001
     dims = 3
 #
@@ -174,8 +175,8 @@ if __name__ == '__main__':
     config = generate_initial_random_wsubs(L=Lmax, N=N, Nsubs=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
                                           p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
 
-    # config = generate_initial_random(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
-    #                                       p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
+    # config = generate_initial_bilayer(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
+    #                                   p_add=p_add, p_del=p_del, chkx=chkx, d0min=d0min, d0max=d0max, dims=dims)
 
     """
     R = [[i, 0, 0] for i in range(13)]
@@ -206,15 +207,20 @@ if __name__ == '__main__':
     for i, j in VoronoiNeighbors(config.mynodes.nodesX):
         if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
             config.mynodes.addlink(i, j)
-    """
+
 
     # cProfile.run('config.timeevo(20, record=True)', sort='cumtime')
-
+    """
     configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
         config.timeevo(50., record=True)
 
-    # configs, links, nodeforces, linkforces, ts = config.timeevo(10., record=True)
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
     mlab.show()
+    """
 
+    configs, links, nodeforces, linkforces, ts = config.timeevo(40., record=True)
+    config.savedata()
+    animateconfigs(configs, links, nodeforces, linkforces, ts)
+    mlab.show()
+    """

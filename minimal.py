@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 npr.seed(seed=0)
 
 Lmax = 5
-N = 3
+N = 4
 Nsubs = 4
 
 bend = 10.0
@@ -23,7 +23,9 @@ p_del = 0.1  # base rate to delete links
 chkx = False  # check if links overlap?
 
 c = CellMech(N, num_subs=Nsubs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx,
-             d0max=d0max, dims=dims, issubs=True)
+             d0max=d0max, dims=dims, issubs=False)
+
+"""
 
 Xnodes = np.array([[0, 0, 1.], [1, 0, 1.], [0, 1, 1.]])
 Xsubs = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]])
@@ -56,3 +58,25 @@ configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, sub
 
 animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
 mlab.show()
+"""
+
+Xnodes = np.array([[0, 0, 1.], [1, 0, 1.], [0, 1., 1.], [0, 0, -1.]])
+for i in range(len(Xnodes)):
+    c.mynodes.nodesX[i] = Xnodes[i]
+c.mynodes.updateDists(c.mynodes.nodesX)
+
+c.mynodes.addlink(0, 1, d0=1.)
+c.mynodes.addlink(0, 2, d0=1.)
+c.mynodes.addlink(1, 2, d0=1.)
+c.mynodes.addlink(0, 3, d0=1.)
+c.mynodes.addlink(1, 3, d0=1.)
+c.mynodes.addlink(2, 3, d0=1.)
+
+cProfile.run('c.oneequil2()', sort='cumtime')
+
+"""
+configs, links, nodeforces, linkforces, ts = c.oneequil_o()
+
+animateconfigs(configs, links, nodeforces, linkforces, ts)
+mlab.show()
+"""

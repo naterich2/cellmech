@@ -10,6 +10,7 @@ import numpy as np
 import numpy.random as npr
 import numpy.ma as ma
 import scipy.linalg
+from scipy.integrate import solve_ivp
 import itertools
 from scipy.spatial import Delaunay
 
@@ -154,6 +155,9 @@ class NodeConfiguration:
         self.Mlink = np.zeros((self.N, self.N, 3))      # Torsion from link on node
         self.Flink = np.zeros((self.N, self.N, 3))      # Force from link on node
 
+        # event for terminating numerical integration
+        self.Q = [1]
+
         """stuff for documentation"""
         self.nodesnap = []
         self.linksnap = []
@@ -277,7 +281,17 @@ class NodeConfiguration:
 
         self.Flink[Nodeinds] = (K * (D - D0))[..., None] * E + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
 
-    def getForces(self, X, Phi, t, norm, normT, bend, twist, k, d0, nodeinds):
+    def getForces(self, x, t, norm, normT, bend, twist, k, d0, nodeinds):
+        X = x.reshape(self.N, 6)
+        Phi = X[:, 3:]
+        X = X[:, :3]
+        self.updateDists(X)
+        self.updateLinkForces(Phi, t, norm, normT, bend, twist, k, d0, nodeinds)
+        self.Fnode = self.nodesum()
+        self.Mnode = np.sum(self.Mlink, axis=1)
+        return np.concatenate((self.Fnode, self.Mnode), axis=1).flatten()
+
+    def getForces_o(self, X, Phi, t, norm, normT, bend, twist, k, d0, nodeinds):
         self.updateDists(X)
         self.updateLinkForces(Phi, t, norm, normT, bend, twist, k, d0, nodeinds)
         self.Fnode = self.nodesum()
@@ -440,6 +454,7 @@ class CellMech:
         # parameters for mechanical equilibration
         self.dt = dt  # scaling factor for
         self.nmax = nmax
+        self.tmax = nmax * dt
         self.qmin = qmin
         # parameters to add/remove links
         self.d0_0 = d0_0
@@ -464,27 +479,67 @@ class CellMech:
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
         else:
-            self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs()
+            self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs2()
             self.makesnap = lambda t: self.makesnap_nosubs(t)
             self.addLinkList = lambda: self.addLinkList_nosubs()
 
+    def mechEquilibrium_nosubs2(self):
+        # reshape X and Phi for solveivp
+        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
+        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
+
+        # produce fun for solve_ivp as lambda
+        notatallfun = lambda temp, y: self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
+
+        # produce event function to check wether to end solve_ivp
+        def event(temp, y):
+            k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
+            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+        event.terminal = True
+        event.direction = -1
+
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3)
+        self.mynodes.nodesX = res.y.reshape((self.N, 6, len(res.t)))[:, :3, -1]
+        return res.t[-1]
+
     def mechEquilibrium_nosubs(self):
+        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1)
+        h = self.dt
+        steps = 0
+        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
+        for i in range(self.nmax):
+            k1 = self.mynodes.getForces(x, t, norm, normT, bend, twist, k, d0, nodeinds)
+            Q = np.einsum("i, i", k1, k1) * self.N_inv
+            if Q < self.qmin:
+                break
+            print k1
+            k1 *= h
+            k2 = h * self.mynodes.getForces(x + k1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k3 = h * self.mynodes.getForces(x + k2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k4 = h * self.mynodes.getForces(x + k3, t, norm, normT, bend, twist, k, d0, nodeinds)
+            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
+            steps += 1
+        self.mynodes.nodesX = x[:, :3]
+        self.mynodes.nodesPhi = x[:, 3:]
+        return (steps + 1) * h
+
+    def mechEquilibrium_nosubs_o(self):
         x = self.mynodes.nodesX.copy()
         phi = self.mynodes.nodesPhi.copy()
         h = self.dt
         steps = 0
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
         for i in range(self.nmax):
-            k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k1, j1 = self.mynodes.getForces_o(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
             Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
             if Q < self.qmin:
                 break
             k1, j1 = h * k1, h * j1
-            k2, j2 = self.mynodes.getForces(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k2, j2 = self.mynodes.getForces_o(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
             k2, j2 = h * k2, h * j2
-            k3, j3 = self.mynodes.getForces(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k3, j3 = self.mynodes.getForces_o(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
             k3, j3 = h * k3, h * j3
-            k4, j4 = self.mynodes.getForces(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k4, j4 = self.mynodes.getForces_o(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
             k4, j4 = h * k4, h * j4
             x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
             phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.
@@ -788,6 +843,7 @@ class CellMech:
 
     def timeevo(self, tmax, isinit=True, isfinis=True, record=False):
         t = 0.
+        self.default_update_d0(self.dt)
         if record and isinit:
             self.makesnap(0)
         while t < tmax:
@@ -814,7 +870,50 @@ class CellMech:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes
 
+    def oneequil2(self):
+        linkList = self.mynodes.getLinkList()
+        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
+        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
+
+        notatallfun = lambda temp, y: self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
+
+        def event(temp, y):
+            k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
+            return np.einsum("i, i", k1, k1) * self.N_inv  - self.qmin
+        event.terminal = True
+        event.direction = -1
+
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.dt * self.nmax], y0=x, events=[event], method="LSODA", atol=1e-3)
+        print res.status
+        self.snaptimes = res.t
+        self.mynodes.nodesnap = np.transpose(res.y.reshape((self.N, 6, len(self.snaptimes))), axes=(2, 0, 1))[..., :3]
+        return self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes
+
     def oneequil(self):
+        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1)
+        h = self.dt
+        steps = 0
+        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
+        for i in range(self.nmax):
+            self.mynodes.nodesX = x[:, :3]
+            k1 = self.mynodes.getForces(x, t, norm, normT, bend, twist, k, d0, nodeinds)
+            self.makesnap(i)
+            Q = np.einsum("i, i", k1, k1) * self.N_inv
+            if Q < self.qmin:
+                break
+            k1 *= h
+            k2 = h * self.mynodes.getForces(x + k1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k3 = h * self.mynodes.getForces(x + k2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k4 = h * self.mynodes.getForces(x + k3, t, norm, normT, bend, twist, k, d0, nodeinds)
+            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
+            steps += 1
+        self.mynodes.nodesPhi = x[:, 3:]
+        self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
+        self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
+        return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
+               self.snaptimes
+
+    def oneequil_o(self):
         x = self.mynodes.nodesX.copy()
         phi = self.mynodes.nodesPhi.copy()
         h = self.dt
@@ -822,17 +921,17 @@ class CellMech:
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
         for i in range(self.nmax):
             self.mynodes.nodesX = x
-            k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k1, j1 = self.mynodes.getForces_o(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
             self.makesnap(i)
             Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
             if Q < self.qmin:
                 break
             k1, j1 = h * k1, h * j1
-            k2, j2 = self.mynodes.getForces(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k2, j2 = self.mynodes.getForces_o(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
             k2, j2 = h * k2, h * j2
-            k3, j3 = self.mynodes.getForces(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k3, j3 = self.mynodes.getForces_o(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
             k3, j3 = h * k3, h * j3
-            k4, j4 = self.mynodes.getForces(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
+            k4, j4 = self.mynodes.getForces_o(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
             k4, j4 = h * k4, h * j4
             x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
             phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.

@@ -291,13 +291,6 @@ class NodeConfiguration:
         self.Mnode = np.sum(self.Mlink, axis=1)
         return np.concatenate((self.Fnode, self.Mnode), axis=1).flatten()
 
-    def getForces_o(self, X, Phi, t, norm, normT, bend, twist, k, d0, nodeinds):
-        self.updateDists(X)
-        self.updateLinkForces(Phi, t, norm, normT, bend, twist, k, d0, nodeinds)
-        self.Fnode = self.nodesum()
-        self.Mnode = np.sum(self.Mlink, axis=1)
-        return self.Fnode, self.Mnode
-
     def getLinkList(self):
         allLinks0, allLinks1 = np.where(self.islink == True)
         return np.array([[allLinks0[i], allLinks1[i]] for i in range(len(allLinks0)) if allLinks0[i] > allLinks1[i]])
@@ -318,7 +311,7 @@ class SubsConfiguration:
         """description of nodes"""
         self.nodesX = np.zeros((self.Nsubs, 3))  # r of subs nodes
         self.Fnode = np.zeros((self.Nsubs, 3))  # force exerted on subs nodes
-        self.Mnode = np.zeros((self.Nsubs, 3))  # torque exerted on subs nodes
+        # self.Mnode = np.zeros((self.Nsubs, 3))  # torque exerted on subs nodes
 
         """description of links"""
         # islink[i, j] is True if nodes i and j are connected via link
@@ -428,11 +421,15 @@ class SubsConfiguration:
 
         self.Flink[Nodeinds] = (K * (D - D0))[..., None] * E + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
 
-    def getForces(self, X, Phi, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds):
+    def getForces(self, x, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds):
+        X = x.reshape(self.N, 6)
+        Phi = X[:, 3:]
+        X = X[:, :3]
         self.updateDists(X)
         self.updateLinkForces(Phi, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds)
         self.Fnode = np.sum(self.Flink, axis=0)
-        return np.sum(self.Flink, axis=1), np.sum(self.Mcelllink, axis=1)
+        # self.Mnode = np.sum(self.Mcelllink, axis=0)
+        return np.concatenate((np.sum(self.Flink, axis=1), np.sum(self.Mcelllink, axis=1)), axis=1).flatten()
 
     def getLinkList(self):
         allLinks0, allLinks1 = np.where(self.islink == True)
@@ -444,7 +441,7 @@ class SubsConfiguration:
 
 class CellMech:
     def __init__(self, num_cells, num_subs=None, dt=0.01, nmax=3000, qmin=0.001, d0_0=1, force_limit=15., p_add=1.,
-                 p_del=0.2, chkx=False, d0max=2., dims=3, isF0=False, isanchor=False, issubs=True):
+                 p_del=0.2, chkx=False, d0max=2., dims=3, isF0=False, isanchor=False, issubs=False):
 
         self.dims = dims
         self.issubs = issubs
@@ -479,114 +476,55 @@ class CellMech:
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
         else:
-            self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs2()
+            self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs()
             self.makesnap = lambda t: self.makesnap_nosubs(t)
             self.addLinkList = lambda: self.addLinkList_nosubs()
 
-    def mechEquilibrium_nosubs2(self):
+    def mechEquilibrium_nosubs(self):
         # reshape X and Phi for solveivp
         x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
 
         # produce fun for solve_ivp as lambda
-        notatallfun = lambda temp, y: self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
+        def notatallfun(temp, y): return self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
 
         # produce event function to check wether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
             return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+
         event.terminal = True
         event.direction = -1
 
         res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3)
-        self.mynodes.nodesX = res.y.reshape((self.N, 6, len(res.t)))[:, :3, -1]
+        x = res.y.reshape((self.N, 6, len(res.t)))
+        self.mynodes.nodesX = x[:, :3, -1]
+        self.mynodes.nodesPhi = x[:, 3:, -1]
         return res.t[-1]
 
-    def mechEquilibrium_nosubs(self):
-        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1)
-        h = self.dt
-        steps = 0
-        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
-        for i in range(self.nmax):
-            k1 = self.mynodes.getForces(x, t, norm, normT, bend, twist, k, d0, nodeinds)
-            Q = np.einsum("i, i", k1, k1) * self.N_inv
-            if Q < self.qmin:
-                break
-            print k1
-            k1 *= h
-            k2 = h * self.mynodes.getForces(x + k1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k3 = h * self.mynodes.getForces(x + k2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k4 = h * self.mynodes.getForces(x + k3, t, norm, normT, bend, twist, k, d0, nodeinds)
-            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
-            steps += 1
-        self.mynodes.nodesX = x[:, :3]
-        self.mynodes.nodesPhi = x[:, 3:]
-        return (steps + 1) * h
-
-    def mechEquilibrium_nosubs_o(self):
-        x = self.mynodes.nodesX.copy()
-        phi = self.mynodes.nodesPhi.copy()
-        h = self.dt
-        steps = 0
-        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
-        for i in range(self.nmax):
-            k1, j1 = self.mynodes.getForces_o(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
-            Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
-            if Q < self.qmin:
-                break
-            k1, j1 = h * k1, h * j1
-            k2, j2 = self.mynodes.getForces_o(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k2, j2 = h * k2, h * j2
-            k3, j3 = self.mynodes.getForces_o(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k3, j3 = h * k3, h * j3
-            k4, j4 = self.mynodes.getForces_o(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k4, j4 = h * k4, h * j4
-            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
-            phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.
-            steps += 1
-        self.mynodes.nodesX = x
-        self.mynodes.nodesPhi = phi
-        return (steps + 1) * h
-
     def mechEquilibrium_withsubs(self):
-        x = self.mynodes.nodesX.copy()
-        phi = self.mynodes.nodesPhi.copy()
-        h = self.dt
-        steps = 0
+        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
         tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
-        for i in range(self.nmax):
-            k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks1, js1 = self.mysubs.getForces(x, phi, tcell, tsubs, normcell, normsubs,
-                                                  bends, twists, ks, d0s, nodeindss)
-            k1 += ks1
-            j1 += js1
-            Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
-            if Q < self.qmin:
-                break
-            k1, j1 = h * k1, h * j1
 
-            k2, j2 = self.mynodes.getForces(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks2, js2 = self.mysubs.getForces(x + k1 * 0.5, phi + j1 * 0.5,
-                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            k2, j2 = h * (k2 + ks2), h * (j2 + js2)
+        # produce fun for solve_ivp as lambda
+        def notatallfun(temp, y): return self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds) + \
+                                         self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs,
+                                                               bends, twists, ks, d0s, nodeindss)
 
-            k3, j3 = self.mynodes.getForces(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks3, js3 = self.mysubs.getForces(x + k2 * 0.5, phi + j2 * 0.5,
-                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            k3, j3 = h * (k3 + ks3), h * (j3 + js3)
+        # produce event function to check wether to end solve_ivp
+        def event(temp, y):
+            k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds) + \
+                 self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
+            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+        event.terminal = True
+        event.direction = -1
 
-            k4, j4 = self.mynodes.getForces(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks4, js4 = self.mysubs.getForces(x + k3, phi + j3,
-                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            k4, j4 = h * (k4 + ks4), h * (j4 + js4)
-
-            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
-            phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.
-            steps += 1
-        self.mynodes.nodesX = x
-        self.mynodes.nodesPhi = phi
-        return (steps + 1) * h
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3)
+        x = res.y.reshape((self.N, 6, len(res.t)))
+        self.mynodes.nodesX = x[:, :3, -1]
+        self.mynodes.nodesPhi = x[:, 3:, -1]
+        return res.t[-1]
 
     def intersect_all(self):
         allLinks0, allLinks1 = self.mynodes.getLinkTuple()
@@ -709,11 +647,9 @@ class CellMech:
     def tryLink_issubs(self, n1, n2):
         if self.mysubs.islink[n1, n2]:
             return -1
-        """
         if self.dims == 2:
             if self.intersect_withone(n1, n2):
                 return -1  # false
-        """
         d = scipy.linalg.norm(self.mynodes.nodesX[n1] - self.mysubs.nodesX[n2])
         if d > self.d0max:
             return -1  # false
@@ -870,120 +806,48 @@ class CellMech:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes
 
-    def oneequil2(self):
+    def oneequil(self):
         linkList = self.mynodes.getLinkList()
+        # reshape X and Phi for solveivp
         x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
 
-        notatallfun = lambda temp, y: self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
+        # produce fun for solve_ivp as lambda
+        def notatallfun(temp, y): return self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
 
+        # produce event function to check wether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
-            return np.einsum("i, i", k1, k1) * self.N_inv  - self.qmin
+            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
         event.terminal = True
         event.direction = -1
 
-        res = solve_ivp(fun=notatallfun, t_span=[0, self.dt * self.nmax], y0=x, events=[event], method="LSODA", atol=1e-3)
-        print res.status
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, events=[event], method="LSODA", atol=1e-3)
         self.snaptimes = res.t
         self.mynodes.nodesnap = np.transpose(res.y.reshape((self.N, 6, len(self.snaptimes))), axes=(2, 0, 1))[..., :3]
         return self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes
 
-    def oneequil(self):
-        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1)
-        h = self.dt
-        steps = 0
-        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
-        for i in range(self.nmax):
-            self.mynodes.nodesX = x[:, :3]
-            k1 = self.mynodes.getForces(x, t, norm, normT, bend, twist, k, d0, nodeinds)
-            self.makesnap(i)
-            Q = np.einsum("i, i", k1, k1) * self.N_inv
-            if Q < self.qmin:
-                break
-            k1 *= h
-            k2 = h * self.mynodes.getForces(x + k1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k3 = h * self.mynodes.getForces(x + k2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k4 = h * self.mynodes.getForces(x + k3, t, norm, normT, bend, twist, k, d0, nodeinds)
-            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
-            steps += 1
-        self.mynodes.nodesPhi = x[:, 3:]
-        self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
-        self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
-        return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-               self.snaptimes
-
-    def oneequil_o(self):
-        x = self.mynodes.nodesX.copy()
-        phi = self.mynodes.nodesPhi.copy()
-        h = self.dt
-        steps = 0
-        t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
-        for i in range(self.nmax):
-            self.mynodes.nodesX = x
-            k1, j1 = self.mynodes.getForces_o(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
-            self.makesnap(i)
-            Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
-            if Q < self.qmin:
-                break
-            k1, j1 = h * k1, h * j1
-            k2, j2 = self.mynodes.getForces_o(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k2, j2 = h * k2, h * j2
-            k3, j3 = self.mynodes.getForces_o(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k3, j3 = h * k3, h * j3
-            k4, j4 = self.mynodes.getForces_o(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
-            k4, j4 = h * k4, h * j4
-            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
-            phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.
-            steps += 1
-        self.mynodes.nodesPhi = phi
-        self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
-        self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
-        return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-               self.snaptimes
-
     def oneequil_withsubs(self):
-        x = self.mynodes.nodesX.copy()
-        phi = self.mynodes.nodesPhi.copy()
-        phisubs = self.mysubs.nodesPhi.copy()
-        h = self.dt
-        steps = 0
+        linkList = self.mynodes.getLinkList()
+        # reshape X and Phi for solveivp
+        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
         tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
-        for i in range(self.nmax):
-            self.mynodes.nodesX = x
-            self.makesnap(i)
-            k1, j1 = self.mynodes.getForces(x, phi, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks1, js1 = self.mysubs.getForces(x, phi, tcell, tsubs, normcell, normsubs,
-                                                  bends, twists, ks, d0s, nodeindss)
-            k1 += ks1
-            j1 += js1
-            Q = (np.einsum("ij, ij", k1, k1) + np.einsum("ij, ij", j1, j1)) * self.N_inv
-            if Q < self.qmin:
-                break
-            k1, j1 = h * k1, h * j1
 
-            k2, j2 = self.mynodes.getForces(x + k1 * 0.5, phi + j1 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks2, js2 = self.mysubs.getForces(x + k1 * 0.5, phi + j1 * 0.5,
-                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            k2, j2 = h * (k2 + ks2), h * (j2 + js2)
+        # produce fun for solve_ivp as lambda
+        def notatallfun(temp, y): return self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds) + \
+                                         self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs,
+                                                               bends, twists, ks, d0s, nodeindss)
 
-            k3, j3 = self.mynodes.getForces(x + k2 * 0.5, phi + j2 * 0.5, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks3, js3 = self.mysubs.getForces(x + k2 * 0.5, phi + j2 * 0.5,
-                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            k3, j3 = h * (k3 + ks3), h * (j3 + js3)
+        # produce event function to check wether to end solve_ivp
+        def event(temp, y):
+            k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds) + \
+                 self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
+            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+        event.terminal = True
+        event.direction = -1
 
-            k4, j4 = self.mynodes.getForces(x + k3, phi + j3, t, norm, normT, bend, twist, k, d0, nodeinds)
-            ks4, js4 = self.mysubs.getForces(x + k3, phi + j3,
-                                                  tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            k4, j4 = h * (k4 + ks4), h * (j4 + js4)
-
-            x += (k1 + 2 * k2 + 2 * k3 + k4) / 6.
-            phi += (j1 + 2 * j2 + 2 * j3 + j4) / 6.
-            steps += 1
-        self.mynodes.nodesX = x
-        self.mynodes.nodesPhi = phi
-        self.mysubs.nodesPhi = phisubs
-        return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-               self.snaptimes, \
-               self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, events=[event], method="LSODA", atol=1e-3)
+        self.snaptimes = res.t
+        self.mynodes.nodesnap = np.transpose(res.y.reshape((self.N, 6, len(self.snaptimes))), axes=(2, 0, 1))[..., :3]
+        return self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes

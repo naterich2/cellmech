@@ -172,7 +172,7 @@ if __name__ == '__main__':
     p_del = 0.1  # base rate to delete links
     chkx = False  # check if links overlap?
 
-    """
+
     # substrate
 
     config = generate_initial_random_wsubs(L=Lmax, N=N, Nsubs=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
@@ -199,8 +199,8 @@ if __name__ == '__main__':
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
     mlab.show()
-    """
 
+    """
     # bilayer
 
     config = generate_initial_bilayer(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
@@ -212,13 +212,12 @@ if __name__ == '__main__':
         if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
             config.mynodes.addlink(i, j)
 
-    cProfile.run('config.timeevo(10.)', sort='cumtime')
-    # cProfile.run('config.oneequil2()', sort='cumtime')
+    # cProfile.run('config.oneequil()', sort='cumtime')
 
 
-    """
+
     configs, links, nodeforces, linkforces, ts = config.timeevo(40., record=True)
-    config.savedata()
+    # config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
     """

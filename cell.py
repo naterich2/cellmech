@@ -155,8 +155,10 @@ class NodeConfiguration:
         self.Mlink = np.zeros((self.N, self.N, 3))      # Torsion from link on node
         self.Flink = np.zeros((self.N, self.N, 3))      # Force from link on node
 
-        # event for terminating numerical integration
-        self.Q = [1]
+        # functions for randoms in default_update_d0
+        self.lowers = np.tril_indices(self.N, -1)
+        self.randomlength = int(self.N * (self.N - 1) / 2)
+        self.randomsummand = np.zeros((self.N, self.N))
 
         """stuff for documentation"""
         self.nodesnap = []
@@ -460,10 +462,6 @@ class CellMech:
         self.p_del = p_del
         self.chkx = chkx
         self.d0max = d0max
-        # functions for randoms in default_update_d0
-        self.lowers = np.tril_indices(self.N, -1)
-        self.randomsummand = np.zeros((self.N, self.N))
-        self.randomlength = int(self.N * (self.N - 1) / 2)
 
         """stuff for documentation"""
         self.snaptimes = []
@@ -531,6 +529,8 @@ class CellMech:
         x = res.y.reshape((self.N, 6, len(res.t)))
         self.mynodes.nodesX = x[:, :3, -1]
         self.mynodes.nodesPhi = x[:, 3:, -1]
+        if res.status != 1:
+            print res.status
         return res.t[-1]
 
     def mechEquilibrium_lonesome(self):
@@ -759,13 +759,14 @@ class CellMech:
                         return dt
 
     def default_update_d0(self, dt):
-        myrandom = npr.random((self.randomlength, ))
-        self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = myrandom, myrandom
+        myrandom = npr.random((self.mynodes.randomlength, ))
+        self.mynodes.randomsummand[self.mynodes.lowers], self.mynodes.randomsummand.T[self.mynodes.lowers] = myrandom, myrandom
         self.mynodes.d0 += 0.2 * (self.d0_0 - self.mynodes.d0) * dt + 0.2 * (
-                   2 * sqrt(dt) * self.randomsummand - sqrt(dt))              # magic number 0.2 and 0.05??
+                   2 * sqrt(dt) * self.mynodes.randomsummand - sqrt(dt))              # magic number 0.2 and 0.05??
         if self.issubs is not False:
+            subsrandom = npr.random((self.mysubs.N, self.mysubs.Nsubs))
             self.mysubs.d0 += 0.2 * (self.d0_0 - self.mysubs.d0) * dt + 0.2 * (
-                    2 * sqrt(dt) * self.randomsummand - sqrt(dt))  # magic number 0.2 and 0.05??
+                    2 * sqrt(dt) * subsrandom - sqrt(dt))  # magic number 0.2 and 0.05??
 
     def modlink(self):
         if self.chkx:

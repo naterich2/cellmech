@@ -48,8 +48,8 @@ def generate_initial_random_wsubs(L, N, Nsubs, dt, nmax, qmin, d0_0, p_add, p_de
     if Nsubs is None:
         Nsubs = N
 
-    c = CellMech(N, num_subs=Nsubs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max,
-                      dims=dims, issubs=True)
+    c = CellMech(N, num_subs=Nsubs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx,
+                 d0max=d0max, dims=dims, issubs=True)
 
     for ni in range(N):
         while True:
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     dt = 0.01
     nmax = 300
     qmin = 0.001
-    dims = 2
+    dims = 3
 #
     d0min = 0.8  # min distance between cells
     d0max = 2.  # max distance connected by links
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     p_del = 0.1  # base rate to delete links
     chkx = False  # check if links overlap?
 
-    """
+
     # substrate
 
     config = generate_initial_random_wsubs(L=Lmax, N=N, Nsubs=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
@@ -199,7 +199,7 @@ if __name__ == '__main__':
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
     mlab.show()
-    """
+
     """
     # bilayer
 
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     mlab.show()
     """
 
-
+    """
     # double rod
     
     R = []
@@ -248,4 +248,4 @@ if __name__ == '__main__':
     # config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
-
+    """

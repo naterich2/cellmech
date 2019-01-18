@@ -6,7 +6,7 @@ import numpy as np
 
 
 def showconfig(c, l, nF, fl, figure=None, figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0),
-               figsize=(1000, 1000), cmap='viridis', vmaxlinks=5, vmaxcells=5, cbar=False):
+               figsize=(1000, 1000), cmap='viridis', vmaxlinks=5, vmaxcells=5, cbar=False, upto=-1):
     if figure is None:
         fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
     else:
@@ -16,8 +16,8 @@ def showconfig(c, l, nF, fl, figure=None, figureindex=0, bgcolor=(1, 1, 1), fgco
     rxl, ryl, rzl = (c[l[..., 1]] - c[l[..., 0]]).T
     fc = scipy.linalg.norm(nF, axis=1)
 
-    cells = mlab.points3d(x, y, z, fc, scale_factor=1, opacity=0.5, resolution=16, scale_mode='none', vmin=0.,
-                          colormap=cmap, vmax=vmaxcells)
+    cells = mlab.points3d(x[:upto], y[:upto], z[:upto], fc[:upto], scale_factor=1, opacity=0.5, resolution=16,
+                          scale_mode='none', vmin=0., colormap=cmap, vmax=vmaxcells)
 
     links = mlab.quiver3d(xl, yl, zl, rxl, ryl, rzl, scalars=fl, mode='2ddash', line_width=4., scale_mode='vector',
                           scale_factor=1, colormap=cmap, vmin=0., vmax=vmaxlinks)
@@ -42,8 +42,14 @@ def pack(A, B):
 def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
                    Subs=None, SubsLinks=None, subsnodeForces=None, subslinkForces=None,
                    figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), figsize=(1000, 1000),
-                   cmap='viridis', cbar=False):
+                   cmap='viridis', cbar=False, showsubs=True):
     fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
+
+
+    if showsubs:
+        upto = -1
+    else:
+        upto = len(Configs[0])
 
     if nodeForces is None:
         nodeForces = np.zeros(Configs.shape)
@@ -64,7 +70,7 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
     vmaxlinks = max([np.max(timestep) for timestep in linkForces])
 
     cells, links = showconfig(Configs[0], Links[0], nodeForces[0], linkForces[0], fig,
-                              vmaxcells=vmaxcells, vmaxlinks=vmaxlinks)
+                              vmaxcells=vmaxcells, vmaxlinks=vmaxlinks, upto=upto)
     text = mlab.title('0.0', height=.9)
 
     while True:
@@ -74,7 +80,7 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
             rxl, ryl, rzl = (c[l[..., 1]] - c[l[..., 0]]).T
             fc = scipy.linalg.norm(nF, axis=1)
 
-            cells.mlab_source.set(x=x, y=y, z=z, scalars=fc)
+            cells.mlab_source.set(x=x[:upto], y=y[:upto], z=z[:upto], scalars=fc[:upto])
             links.mlab_source.reset(x=xl, y=yl, z=zl, u=rxl, v=ryl, w=rzl, scalars=fl)
             text.set(text='{}'.format(round(t, 2)))
             yield

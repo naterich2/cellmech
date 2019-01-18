@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.integrate import ode
-from common import validate_tol, warn_extraneous
-from base import OdeSolver, DenseOutput
+from .common import validate_tol, warn_extraneous
+from .base import OdeSolver, DenseOutput
 
 
 class LSODA(OdeSolver):

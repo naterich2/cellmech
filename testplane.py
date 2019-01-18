@@ -244,8 +244,8 @@ if __name__ == '__main__':
 
     # cProfile.run("config.timeevo(40.)", sort="cumtime")
 
-    configs, links, nodeforces, linkforces, ts = config.timeevo(4000., record=True)
-    config.savedata()
+    configs, links, nodeforces, linkforces, ts = config.timeevo(40., record=True)
+    # config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
 

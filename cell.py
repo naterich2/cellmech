@@ -470,15 +470,20 @@ class CellMech:
 
         self.mynodes = NodeConfiguration(num=num_cells, dims=dims, isF0=isF0, isanchor=isanchor)
 
-        if self.issubs:
+        if self.issubs is True:
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
-        else:
+        elif self.issubs is False:
             self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs()
             self.makesnap = lambda t: self.makesnap_nosubs(t)
             self.addLinkList = lambda: self.addLinkList_nosubs()
+        elif self.issubs is "lonesome":
+            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs)
+            self.mechEquilibrium = lambda: self.mechEquilibrium_lonesome()
+            self.makesnap = lambda t: self.makesnap_withsubs(t)
+            self.addLinkList = lambda: self.addLinkList_lonesome()
 
     def mechEquilibrium_nosubs(self):
         # reshape X and Phi for solveivp
@@ -488,7 +493,7 @@ class CellMech:
         # produce fun for solve_ivp as lambda
         def notatallfun(temp, y): return self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
 
-        # produce event function to check wether to end solve_ivp
+        # produce event function to check whether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
             return np.max(np.abs(k1) - self.qmin)
@@ -514,10 +519,31 @@ class CellMech:
                                          self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs,
                                                                bends, twists, ks, d0s, nodeindss)
 
-        # produce event function to check wether to end solve_ivp
+        # produce event function to check whether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds) + \
                  self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
+            return np.max(np.abs(k1) - self.qmin)
+        event.terminal = True
+        event.direction = -1
+
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3)
+        x = res.y.reshape((self.N, 6, len(res.t)))
+        self.mynodes.nodesX = x[:, :3, -1]
+        self.mynodes.nodesPhi = x[:, 3:, -1]
+        return res.t[-1]
+
+    def mechEquilibrium_lonesome(self):
+        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
+        tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
+
+        # produce fun for solve_ivp as lambda
+        def notatallfun(temp, y): return self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs,
+                                                               bends, twists, ks, d0s, nodeindss)
+
+        # produce event function to check whether to end solve_ivp
+        def event(temp, y):
+            k1 = self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
             return np.max(np.abs(k1) - self.qmin)
         event.terminal = True
         event.direction = -1
@@ -682,6 +708,16 @@ class CellMech:
                 to_add.append(((i, j), p))
         return to_add
 
+    def addLinkList_lonesome(self):
+        to_add = []
+        for i in range(self.N):
+            for j in range(self.mysubs.Nsubs):
+                d = self.tryLink_issubs(i, j)
+                if d > 1e-5:
+                    p = (1 - (d / self.d0max))
+                    to_add.append(((i, j), p))
+        return to_add
+
     def pickEvent(self, to_del, to_add):
         s1 = 0.
         for (l, p) in to_del:
@@ -727,6 +763,9 @@ class CellMech:
         self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = myrandom, myrandom
         self.mynodes.d0 += 0.2 * (self.d0_0 - self.mynodes.d0) * dt + 0.2 * (
                    2 * sqrt(dt) * self.randomsummand - sqrt(dt))              # magic number 0.2 and 0.05??
+        if self.issubs is not False:
+            self.mysubs.d0 += 0.2 * (self.d0_0 - self.mysubs.d0) * dt + 0.2 * (
+                    2 * sqrt(dt) * self.randomsummand - sqrt(dt))  # magic number 0.2 and 0.05??
 
     def modlink(self):
         if self.chkx:

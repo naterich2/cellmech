@@ -1,13 +1,13 @@
 from __future__ import division, print_function, absolute_import
 import inspect
 import numpy as np
-from bdf import BDF
-from radau import Radau
-from rk import RK23, RK45
-from lsoda import LSODA
+from .bdf import BDF
+from .radau import Radau
+from .rk import RK23, RK45
+from .lsoda import LSODA
 from scipy.optimize import OptimizeResult
-from common import EPS, OdeSolution
-from base import OdeSolver
+from .common import EPS, OdeSolution
+from .base import OdeSolver
 
 
 METHODS = {'RK23': RK23,

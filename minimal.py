@@ -72,11 +72,10 @@ c.mynodes.addlink(0, 3, d0=1.)
 c.mynodes.addlink(1, 3, d0=1.)
 c.mynodes.addlink(2, 3, d0=1.)
 
-cProfile.run('c.oneequil2()', sort='cumtime')
+# cProfile.run('c.oneequil2()', sort='cumtime')
 
-"""
-configs, links, nodeforces, linkforces, ts = c.oneequil_o()
+
+configs, links, nodeforces, linkforces, ts = c.oneequil()
 
 animateconfigs(configs, links, nodeforces, linkforces, ts)
 mlab.show()
-"""

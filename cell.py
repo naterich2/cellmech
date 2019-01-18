@@ -10,7 +10,7 @@ import numpy as np
 import numpy.random as npr
 import numpy.ma as ma
 import scipy.linalg
-from scipy.integrate import solve_ivp
+from myivp.myivp import solve_ivp
 import itertools
 from scipy.spatial import Delaunay
 
@@ -452,7 +452,7 @@ class CellMech:
         self.dt = dt  # scaling factor for
         self.nmax = nmax
         self.tmax = nmax * dt
-        self.qmin = qmin
+        self.qmin = np.sqrt(qmin)
         # parameters to add/remove links
         self.d0_0 = d0_0
         self.force_limit = force_limit
@@ -491,7 +491,7 @@ class CellMech:
         # produce event function to check wether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
-            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+            return np.max(np.abs(k1) - self.qmin)
 
         event.terminal = True
         event.direction = -1
@@ -500,6 +500,8 @@ class CellMech:
         x = res.y.reshape((self.N, 6, len(res.t)))
         self.mynodes.nodesX = x[:, :3, -1]
         self.mynodes.nodesPhi = x[:, 3:, -1]
+        if res.status != 1:
+            print res.status
         return res.t[-1]
 
     def mechEquilibrium_withsubs(self):
@@ -516,7 +518,7 @@ class CellMech:
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds) + \
                  self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+            return np.max(np.abs(k1) - self.qmin)
         event.terminal = True
         event.direction = -1
 
@@ -723,7 +725,7 @@ class CellMech:
     def default_update_d0(self, dt):
         myrandom = npr.random((self.randomlength, ))
         self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = myrandom, myrandom
-        self.mynodes.d0 += 0.2 * (self.d0_0 - self.mynodes.d0) * dt + 0.05 * (
+        self.mynodes.d0 += 0.2 * (self.d0_0 - self.mynodes.d0) * dt + 0.2 * (
                    2 * sqrt(dt) * self.randomsummand - sqrt(dt))              # magic number 0.2 and 0.05??
 
     def modlink(self):
@@ -818,7 +820,8 @@ class CellMech:
         # produce event function to check wether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
-            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+            print np.max(np.abs(k1))
+            return np.max(np.abs(k1) - self.qmin)
         event.terminal = True
         event.direction = -1
 
@@ -843,7 +846,7 @@ class CellMech:
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds) + \
                  self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            return np.einsum("i, i", k1, k1) * self.N_inv - self.qmin
+            return np.max(np.abs(k1) - self.qmin)
         event.terminal = True
         event.direction = -1
 

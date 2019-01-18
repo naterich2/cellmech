@@ -2,7 +2,7 @@
 
 from cell import *
 from animate import *
-import cProfile
+# import cProfile
 import matplotlib.pyplot as plt
 npr.seed(seed=0)
 
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     dt = 0.01
     nmax = 300
     qmin = 0.001
-    dims = 3
+    dims = 2
 #
     d0min = 0.8  # min distance between cells
     d0max = 2.  # max distance connected by links
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     p_del = 0.1  # base rate to delete links
     chkx = False  # check if links overlap?
 
-
+    """
     # substrate
 
     config = generate_initial_random_wsubs(L=Lmax, N=N, Nsubs=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
@@ -199,7 +199,7 @@ if __name__ == '__main__':
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
     mlab.show()
-
+    """
     """
     # bilayer
 
@@ -222,24 +222,30 @@ if __name__ == '__main__':
     mlab.show()
     """
 
-    """
+
     # double rod
     
-    R = [[i, 0, 0] for i in range(13)]
+    R = []
     for i in range(12):
-        R.append([i + 0.5, 0.5, 0])
+        r = (0.1 - 0.2 * npr.random())
+        R.append([i, r, 0])
+        r = (0.1 - 0.2 * npr.random())
+        R.append([i + 0.5, r + 0.5, 0])
     R = np.array(R)
 
-    config = generate_config_from_default(R, L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin,
-                                          d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
-                                              config.mynodes.updateDists(config.mynodes.nodesX)
+    config = generate_from_default(R, L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin,
+                                    d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
+
+    config.mynodes.updateDists(config.mynodes.nodesX)
     
     for i, j in VoronoiNeighbors(config.mynodes.nodesX):
         if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
             config.mynodes.addlink(i, j)
-                
-    configs, links, nodeforces, linkforces, ts = config.timeevo(40., record=True)
+
+    # cProfile.run("config.timeevo(40.)", sort="cumtime")
+
+    configs, links, nodeforces, linkforces, ts = config.timeevo(4000., record=True)
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
-    """
+

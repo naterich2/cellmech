@@ -111,7 +111,7 @@ def VoronoiNeighbors(positions, vodims=2):
 
 
 class NodeConfiguration:
-    def __init__(self, num, dims=3, isF0=False, isanchor=False):
+    def __init__(self, num, d0_0, dims=3, isF0=False, isanchor=False):
         if dims == 2:
             self.updateLinkForces = lambda PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds: \
                 self.updateLinkForces2D(PHI, T, Bend, K, D0, Nodeinds)
@@ -138,22 +138,24 @@ class NodeConfiguration:
         self.F0 = np.zeros((self.N, 3))                 # external force on node
         self.isanchor = isanchor
         self.X0 = np.zeros((self.N, 3))                 # node anchor, must be set if needed!
-        self.knode = np.zeros((self.N,))                 # spring constant of node to anchor point, defaults to 0
+        self.knode = np.zeros((self.N,))                # spring constant of node to anchor point, defaults to 0
 
         """description of links"""
         # islink[i, j] is True if nodes i and j are connected via link
         self.islink = np.full((self.N, self.N), False)  # Describes link at node [0] leading to node [1]
 
-        self.e = np.zeros((self.N, self.N, 3))          # direction connecting nodes (a.k.a. "actual direction")
-        self.d = np.zeros((self.N, self.N))             # distance between nodes (a.k.a. "actual distance")
-        self.k = np.zeros((self.N, self.N))             # spring constant between nodes
-        self.bend = 10. * np.ones((self.N, self.N))     # bending rigidity
-        self.twist = 1. * np.ones((self.N, self.N))     # torsion spring constant
-        self.d0 = np.zeros((self.N, self.N))            # equilibrium distance between nodes,
-        self.t = np.zeros((self.N, self.N, 3))          # tangent vector of link at node (a.k.a. "preferred direction")
-        self.norm = np.zeros((self.N, self.N, 3))       # normal vector of link at node
-        self.Mlink = np.zeros((self.N, self.N, 3))      # Torsion from link on node
-        self.Flink = np.zeros((self.N, self.N, 3))      # Force from link on node
+        self.e = np.zeros((self.N, self.N, 3))           # direction connecting nodes (a.k.a. "actual direction")
+        self.d = np.zeros((self.N, self.N))              # distance between nodes (a.k.a. "actual distance")
+        self.d0_0 = d0_0
+        self.k = np.zeros((self.N, self.N))              # spring constant between nodes
+        self.bend = 10. * np.ones((self.N, self.N))      # bending rigidity
+        self.twist = 1. * np.ones((self.N, self.N))      # torsion spring constant
+        self.d0 = np.zeros((self.N, self.N))             # equilibrium distance between nodes,
+        self.t = np.zeros((self.N, self.N, 3))           # tangent vector of link at node (a.k.a. "preferred direction")
+        self.norm = np.zeros((self.N, self.N, 3))        # normal vector of link at node
+        self.Mlink = np.zeros((self.N, self.N, 3))       # Torsion from link on node
+        self.Flink = np.zeros((self.N, self.N, 3))       # Force from link on node
+        self.Flink_Hook = np.zeros((self.N, self.N, 3))  # Hookean component of Flink
 
         # functions for randoms in default_update_d0
         self.lowers = np.tril_indices(self.N, -1)
@@ -177,9 +179,11 @@ class NodeConfiguration:
         elif self.isF0 is True and self.isanchor is False:
             self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.F0
         elif self.isF0 is False and self.isanchor is True:
-            self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.knode * (self.X0 - self.nodesX)
+            self.nodesum = lambda: np.sum(self.Flink, axis=1) + \
+                                   np.multiply(self.knode[..., None], (self.X0 - self.nodesX))
         elif self.isF0 is True and self.isanchor is True:
-            self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.F0 + self.knode * (self.X0 - self.nodesX)
+            self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.F0 + \
+                                   np.multiply(self.knode[..., None], (self.X0 - self.nodesX))
 
     def addlink(self, ni, mi, t1=None, t2=None, d0=None, k=None, bend=None, twist=None, n=None, norm1=None, norm2=None):
 
@@ -222,6 +226,7 @@ class NodeConfiguration:
     def removelink(self, ni, mi):
         self.islink[ni, mi], self.islink[mi, ni] = False, False
         self.Flink[ni, mi], self.Flink[mi, ni], self.Mlink[ni, mi], self.Mlink[mi, ni] = null, null, null, null
+        self.Flink_Hook[ni, mi], self.Flink[mi, ni] = null, null
         self.t[ni, mi], self.t[mi, ni], self.norm[ni, mi], self.norm[mi, ni] = null, null, null, null
         self.k[ni, mi], self.k[mi, ni], self.d0[ni, mi], self.d0[mi, ni] = 0, 0, 0, 0
 
@@ -281,7 +286,8 @@ class NodeConfiguration:
         M = self.Mlink + np.transpose(self.Mlink, axes=(1, 0, 2))
         M = M[Nodeinds]
 
-        self.Flink[Nodeinds] = (K * (D - D0))[..., None] * E + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
+        self.Flink_Hook[Nodeinds] = (K * (D - D0))[..., None] * E
+        self.Flink[Nodeinds] = self.Flink_Hook[Nodeinds] + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
 
     def getForces(self, x, t, norm, normT, bend, twist, k, d0, nodeinds):
         X = x.reshape(self.N, 6)
@@ -302,36 +308,52 @@ class NodeConfiguration:
         inds = np.where(allLinks0 > allLinks1)
         return allLinks0[inds], allLinks1[inds]
 
+    def default_update_d0(self, dt, stoch=0.5):
+        myrandom = npr.random((self.randomlength, ))
+        self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = myrandom, myrandom
+        # magic number 0.2 and 0.05??
+        self.d0 += 0.2 * (self.d0_0 - self.d0) * dt + stoch * (2 * sqrt(dt) * self.randomsummand - sqrt(dt))
+
+    def fixf_update_d0(self, dt, stoch=0.5):
+        myrandom = npr.random((self.randomlength,))
+        self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = myrandom, myrandom
+        # magic number 0.2 and 0.05??
+        inds = np.where(self.d <= self.d0)
+        self.d0[inds] += 0.05 * (scipy.linalg.norm(self.Flink_Hook, axis=2)[inds] - 2.) * dt
+        self.d0 += stoch * (2 * sqrt(dt) * self.randomsummand - sqrt(dt))
+
 
 class SubsConfiguration:
-    def __init__(self, num_cells, num_subs, dims=3):
+    def __init__(self, num_cells, num_subs, d0_0, dims=3):
         self.dims = dims
         # variables to store cell number and cell positions and angles
         self.N = num_cells
         self.Nsubs = num_subs
 
         """description of nodes"""
-        self.nodesX = np.zeros((self.Nsubs, 3))  # r of subs nodes
-        self.Fnode = np.zeros((self.Nsubs, 3))  # force exerted on subs nodes
-        # self.Mnode = np.zeros((self.Nsubs, 3))  # torque exerted on subs nodes
+        self.nodesX = np.zeros((self.Nsubs, 3))              # r of subs nodes
+        self.Fnode = np.zeros((self.Nsubs, 3))               # force exerted on subs nodes
+        # self.Mnode = np.zeros((self.Nsubs, 3))             # torque exerted on subs nodes
 
         """description of links"""
         # islink[i, j] is True if nodes i and j are connected via link
-        self.islink = np.full((self.N, self.Nsubs), False)  # Describes link at cell node [0] leading to subs node [1]
+        self.islink = np.full((self.N, self.Nsubs), False)   # Describes link at cell node [0] leading to subs node [1]
 
-        self.e = np.zeros((self.N, self.Nsubs, 3))  # direction from cell node to subs node
-        self.d = np.zeros((self.N, self.Nsubs))  # distance between nodes (a.k.a. "actual distance")
-        self.k = np.zeros((self.N, self.Nsubs))  # spring constant between nodes
-        self.bend = 10. * np.ones((self.N, self.Nsubs))  # bending rigidity
-        self.twist = 1. * np.ones((self.N, self.Nsubs))  # torsion spring constant
-        self.d0 = np.zeros((self.N, self.Nsubs))  # equilibrium distance between nodes,
-        self.tcell = np.zeros((self.N, self.Nsubs, 3))  # tangent vector of link at cell node
-        self.tsubs = np.zeros((self.N, self.Nsubs, 3))  # tangent vector of link at subs node
-        self.normcell = np.zeros((self.N, self.Nsubs, 3))  # normal vector of link at cell node
-        self.normsubs = np.zeros((self.N, self.Nsubs, 3))  # normal vector of link at subs node
-        self.Mcelllink = np.zeros((self.N, self.Nsubs, 3))  # Torsion from link on cell node
-        self.Msubslink = np.zeros((self.N, self.Nsubs, 3))  # Torsion from link on subs node
-        self.Flink = np.zeros((self.N, self.Nsubs, 3))  # Force from link on cell node
+        self.e = np.zeros((self.N, self.Nsubs, 3))           # direction from cell node to subs node
+        self.d = np.zeros((self.N, self.Nsubs))              # distance between nodes (a.k.a. "actual distance")
+        self.k = np.zeros((self.N, self.Nsubs))              # spring constant between nodes
+        self.bend = 10. * np.ones((self.N, self.Nsubs))      # bending rigidity
+        self.twist = 1. * np.ones((self.N, self.Nsubs))      # torsion spring constant
+        self.d0 = np.zeros((self.N, self.Nsubs))             # equilibrium distance between nodes,
+        self.d0_0 = d0_0
+        self.tcell = np.zeros((self.N, self.Nsubs, 3))       # tangent vector of link at cell node
+        self.tsubs = np.zeros((self.N, self.Nsubs, 3))       # tangent vector of link at subs node
+        self.normcell = np.zeros((self.N, self.Nsubs, 3))    # normal vector of link at cell node
+        self.normsubs = np.zeros((self.N, self.Nsubs, 3))    # normal vector of link at subs node
+        self.Mcelllink = np.zeros((self.N, self.Nsubs, 3))   # Torsion from link on cell node
+        self.Msubslink = np.zeros((self.N, self.Nsubs, 3))   # Torsion from link on subs node
+        self.Flink = np.zeros((self.N, self.Nsubs, 3))       # Force from link on cell node
+        self.Flink_Hook = np.zeros((self.N, self.Nsubs, 3))  # Hookean component of Flink
 
         """stuff for documentation"""
         self.linksnap = []
@@ -373,7 +395,8 @@ class SubsConfiguration:
 
     def removelink(self, ni, mi):
         self.islink[ni, mi] = False
-        self.Flink[ni, mi], self.Mcelllink[ni, mi], self.Msubslink[ni, mi] = null, null, null
+        self.Flink[ni, mi], self.Flink_Hook[ni, mi] = null, null
+        self.Mcelllink[ni, mi], self.Msubslink[ni, mi] = null, null
         self.tcell[ni, mi], self.tsubs[ni, mi], self.normcell[ni, mi], self.normsubs[ni, mi] = null, null, null, null
         self.k[ni, mi], self.d0[ni, mi] = 0, 0
 
@@ -421,7 +444,8 @@ class SubsConfiguration:
         M = self.Mcelllink + self.Msubslink
         M = M[Nodeinds]
 
-        self.Flink[Nodeinds] = (K * (D - D0))[..., None] * E + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
+        self.Flink_Hook[Nodeinds] = (K * (D - D0))[..., None] * E
+        self.Flink[Nodeinds] = self.Flink_Hook[Nodeinds] + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
 
     def getForces(self, x, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds):
         X = x.reshape(self.N, 6)
@@ -440,9 +464,21 @@ class SubsConfiguration:
     def getLinkTuple(self):
         return np.where(self.islink == True)
 
+    def default_update_d0(self, dt, stoch):
+        subsrandom = npr.random((self.N, self.Nsubs))
+        # magic number 0.2 and 0.05??
+        self.d0 += 0.2 * (self.d0_0 - self.d0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
+
+    def fixf_update_d0(self, dt, stoch):
+        subsrandom = npr.random((self.N, self.Nsubs))
+        # magic number 0.2 and 0.05??
+        inds = np.where(self.d <= self.d0)
+        self.d0[inds] += 0.05 * (scipy.linalg.norm(self.Flink_Hook, axis=2)[inds] - 2.) * dt
+        self.d0 += stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
+
 
 class CellMech:
-    def __init__(self, num_cells, num_subs=None, dt=0.01, nmax=3000, qmin=0.001, d0_0=1, force_limit=15., p_add=1.,
+    def __init__(self, num_cells, num_subs=None, dt=0.01, nmax=300, qmin=0.001, d0_0=1, force_limit=15., p_add=1.,
                  p_del=0.2, chkx=False, d0max=2., dims=3, isF0=False, isanchor=False, issubs=False):
 
         self.dims = dims
@@ -466,10 +502,10 @@ class CellMech:
         """stuff for documentation"""
         self.snaptimes = []
 
-        self.mynodes = NodeConfiguration(num=num_cells, dims=dims, isF0=isF0, isanchor=isanchor)
+        self.mynodes = NodeConfiguration(num=num_cells, dims=dims, d0_0=d0_0, isF0=isF0, isanchor=isanchor)
 
         if self.issubs is True:
-            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs)
+            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
@@ -478,10 +514,13 @@ class CellMech:
             self.makesnap = lambda t: self.makesnap_nosubs(t)
             self.addLinkList = lambda: self.addLinkList_nosubs()
         elif self.issubs is "lonesome":
-            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs)
+            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0)
             self.mechEquilibrium = lambda: self.mechEquilibrium_lonesome()
-            self.makesnap = lambda t: self.makesnap_withsubs(t)
+            self.makesnap = lambda t: self.makesnap_lonesome(t)
             self.addLinkList = lambda: self.addLinkList_lonesome()
+        else:
+            print "I don't know that type of subs"
+            sys.exit()
 
     def mechEquilibrium_nosubs(self):
         # reshape X and Phi for solveivp
@@ -643,22 +682,27 @@ class CellMech:
             self.mynodes.removelink(badlink[0], badlink[1])
 
     def delLinkList(self):
-        linklist = self.mynodes.getLinkList()
         to_del = []
-        for link in linklist:
-            if self.mynodes.d[link[0], link[1]] < self.mynodes.d0[link[0], link[1]]:
-                continue            # compressed links are stable
-            f = scipy.linalg.norm(self.mynodes.Flink[link[0], link[1]])
-            p = exp(f / self.force_limit)
-            to_del.append((link, p))
+        linksum = 0
         if self.issubs:
             linklist = self.mysubs.getLinkList()
+            linksum += len(linklist)
             for link in linklist:
                 if self.mysubs.d[link[0], link[1]] < self.mysubs.d0[link[0], link[1]]:
                     continue
                 f = scipy.linalg.norm(self.mysubs.Flink[link[0], link[1]])
                 p = exp(f / self.force_limit)
-                to_del.append((link, p))
+                to_del.append((link, p, True))
+        linklist = self.mynodes.getLinkList()
+        linksum += len(linklist)
+        if linksum == 1:
+            return []
+        for link in linklist:
+            if self.mynodes.d[link[0], link[1]] < self.mynodes.d0[link[0], link[1]]:
+                continue            # compressed links are stable
+            f = scipy.linalg.norm(self.mynodes.Flink[link[0], link[1]])
+            p = exp(f / self.force_limit)
+            to_del.append((link, p, False))
         return to_del
 
     def tryLink_notsubs(self, n1, n2):
@@ -714,13 +758,14 @@ class CellMech:
             for j in range(self.mysubs.Nsubs):
                 d = self.tryLink_issubs(i, j)
                 if d > 1e-5:
-                    p = (1 - (d / self.d0max))
-                    to_add.append(((i, j), p))
+                    # p = sqrt(1 - (d * d / (self.d0max * self.d0max)))
+                    p = 1 - (d  / self.d0max)
+                    to_add.append(((i, j + self.N), p))
         return to_add
 
     def pickEvent(self, to_del, to_add):
         s1 = 0.
-        for (l, p) in to_del:
+        for (l, p, boo) in to_del:
             s1 += p * self.p_del
         s2 = 0.
         for (q, p) in to_add:
@@ -737,14 +782,14 @@ class CellMech:
 
         r = S * npr.random()
         if r < s1:  # we will remove a link
-            for (l, p) in to_del:
+            for (l, p, boo) in to_del:
                 r = r - p * self.p_del
                 if r < 0:
-                    if l[1] < self.N:
+                    if not boo:
                         self.mynodes.removelink(l[0], l[1])
                         return dt
                     else:
-                        self.mysubs.removelink(l[0], l[1] - self.N)
+                        self.mysubs.removelink(l[0], l[1])
                         return dt
         r = r - s1
         if r < s2:  # we will add a link
@@ -758,15 +803,12 @@ class CellMech:
                         self.mysubs.addlink(n1, n2 - self.N, self.mynodes.nodesPhi[n1])
                         return dt
 
-    def default_update_d0(self, dt):
-        myrandom = npr.random((self.mynodes.randomlength, ))
-        self.mynodes.randomsummand[self.mynodes.lowers], self.mynodes.randomsummand.T[self.mynodes.lowers] = myrandom, myrandom
-        self.mynodes.d0 += 0.2 * (self.d0_0 - self.mynodes.d0) * dt + 0.2 * (
-                   2 * sqrt(dt) * self.mynodes.randomsummand - sqrt(dt))              # magic number 0.2 and 0.05??
+    def update_d0(self, dt, stoch=0.2):
+        # self.mynodes.default_update_d0(dt, stoch=stoch)
+        self.mynodes.fixf_update_d0(dt, stoch=stoch)
         if self.issubs is not False:
-            subsrandom = npr.random((self.mysubs.N, self.mysubs.Nsubs))
-            self.mysubs.d0 += 0.2 * (self.d0_0 - self.mysubs.d0) * dt + 0.2 * (
-                    2 * sqrt(dt) * subsrandom - sqrt(dt))  # magic number 0.2 and 0.05??
+            # self.mysubs.default_update_d0(dt, stoch=stoch)
+            self.mysubs.fixf_update_d0(dt, stoch=stoch)
 
     def modlink(self):
         if self.chkx:
@@ -774,7 +816,7 @@ class CellMech:
         to_del = self.delLinkList()
         to_add = self.addLinkList()
         dt = self.pickEvent(to_del, to_add)
-        self.default_update_d0(dt)
+        self.update_d0(dt)
         return dt
 
     def makesnap_nosubs(self, t):
@@ -795,6 +837,16 @@ class CellMech:
         linkList = self.mysubs.getLinkList()
         self.mysubs.linksnap.append(linkList)
         self.mysubs.flinksnap.append(scipy.linalg.norm(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
+        self.snaptimes.append(t)
+
+    def makesnap_lonesome(self, t):
+        self.mynodes.nodesnap.append(self.mynodes.nodesX.copy())
+        self.mynodes.fnodesnap.append(self.mynodes.Fnode.copy())
+        self.mysubs.fnodesnap.append(self.mysubs.Fnode.copy())
+        linkList = self.mysubs.getLinkList()
+        self.mysubs.linksnap.append(linkList)
+        self.mysubs.flinksnap.append(scipy.linalg.norm(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]],
+                                                       axis=1))
         self.snaptimes.append(t)
 
     def savedata(self, savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True, savet=True):
@@ -821,7 +873,7 @@ class CellMech:
 
     def timeevo(self, tmax, isinit=True, isfinis=True, record=False):
         t = 0.
-        self.default_update_d0(self.dt)
+        self.update_d0(self.dt)
         if record and isinit:
             self.makesnap(0)
         while t < tmax:
@@ -839,14 +891,13 @@ class CellMech:
             self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
             self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
             self.mynodes.snaptimes = np.array(self.snaptimes)
-        if self.issubs:
+        if self.issubs is False:
+            return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
+                   self.snaptimes
+        else:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes, \
                    self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap
-
-        else:
-            return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-                   self.snaptimes
 
     def oneequil(self):
         linkList = self.mynodes.getLinkList()
@@ -860,7 +911,6 @@ class CellMech:
         # produce event function to check wether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
-            print np.max(np.abs(k1))
             return np.max(np.abs(k1) - self.qmin)
         event.terminal = True
         event.direction = -1

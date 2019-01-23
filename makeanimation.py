@@ -1,12 +1,12 @@
 import numpy as np
 from animate import *
-"""
+
 configs = np.load("nodesr.npy")
 links = np.load("links.npy")
 nodeforces = np.load("nodesf.npy")
 linkforces = np.load("linksf.npy")
 ts = np.load("ts.npy")
-skip=10
+skip=1
 animateconfigs(configs[::skip], links[::skip], nodeforces[::skip], linkforces[::skip], ts[::skip]) # , subs, subslinks, subsnodeforces, subslinkforces)
 """
 configs = np.load("nodesr.npy")
@@ -20,7 +20,7 @@ subsnodeforces = np.load("subsnodesf.npy")
 subslinkforces = np.load("subslinksf.npy")
 
 animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
-
+"""
 """
 configs = np.load("nodesr1.npy")
 links = np.load("links1.npy")

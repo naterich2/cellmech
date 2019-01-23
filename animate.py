@@ -45,7 +45,6 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
                    cmap='viridis', cbar=False, showsubs=True):
     fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
 
-
     if showsubs:
         upto = -1
     else:
@@ -53,13 +52,22 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
 
     if nodeForces is None:
         nodeForces = np.zeros(Configs.shape)
-    if linkForces is None:
+    if linkForces is None and Links is not None:
         linkForces = np.zeros((len(Links), len(Links[0])))
 
     if Subs is not None:
         Subs = np.tile(Subs, (len(Configs), 1, 1))
         for t in range(len(SubsLinks)):
-            SubsLinks[t][:, 1] += len(Configs[t])
+            try:
+                SubsLinks[t][:, 1] += len(Configs[t])
+            except IndexError:
+                pass
+
+    if Links is None:
+        Links = SubsLinks
+        linkForces = subslinkForces
+        SubsLinks = None
+        subslinkForces = None
 
     Configs = pack(Configs, Subs)
     Links = pack(Links, SubsLinks)

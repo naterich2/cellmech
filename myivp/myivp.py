@@ -155,7 +155,7 @@ def find_active_events(g, g_new, direction):
 
 
 def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
-              events=None, vectorized=False, **options):
+              events=None, vectorized=False, subs=False, **options):
     """Solve an initial value problem for a system of ODEs.
 
     This function numerically integrates a system of ordinary differential
@@ -310,6 +310,8 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
         The minimum allowed step size and the initial step size respectively
         for 'LSODA' method. By default `min_step` is zero and `first_step` is
         selected automatically.
+    subs : only relevant when used together with cell_mech. False by default.
+        Otherwise: Hand over "mysubs" to enable rotation of subs cells
 
     Returns
     -------
@@ -483,6 +485,10 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
         t_old = solver.t_old
         t = solver.t
         y = solver.y
+
+        if subs is not False:
+            # subs.rotate_subs(t - t_old)
+            pass
 
         if dense_output:
             sol = solver.dense_output()

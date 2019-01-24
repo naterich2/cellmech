@@ -111,7 +111,7 @@ def VoronoiNeighbors(positions, vodims=2):
 
 
 class NodeConfiguration:
-    def __init__(self, num, d0_0, dims=3, isF0=False, isanchor=False):
+    def __init__(self, num, d0_0, p_add, p_del, dims=3, isF0=False, isanchor=False):
         if dims == 2:
             self.updateLinkForces = lambda PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds: \
                 self.updateLinkForces2D(PHI, T, Bend, K, D0, Nodeinds)
@@ -156,6 +156,9 @@ class NodeConfiguration:
         self.Mlink = np.zeros((self.N, self.N, 3))       # Torsion from link on node
         self.Flink = np.zeros((self.N, self.N, 3))       # Force from link on node
         self.Flink_Hook = np.zeros((self.N, self.N, 3))  # Hookean component of Flink
+
+        self.p_add = p_add
+        self.p_del = p_del
 
         # functions for randoms in default_update_d0
         self.lowers = np.tril_indices(self.N, -1)
@@ -324,7 +327,7 @@ class NodeConfiguration:
 
 
 class SubsConfiguration:
-    def __init__(self, num_cells, num_subs, d0_0, dims=3):
+    def __init__(self, num_cells, num_subs, d0_0, p_add, p_del, dims=3):
         self.dims = dims
         # variables to store cell number and cell positions and angles
         self.N = num_cells
@@ -333,7 +336,7 @@ class SubsConfiguration:
         """description of nodes"""
         self.nodesX = np.zeros((self.Nsubs, 3))              # r of subs nodes
         self.Fnode = np.zeros((self.Nsubs, 3))               # force exerted on subs nodes
-        # self.Mnode = np.zeros((self.Nsubs, 3))             # torque exerted on subs nodes
+        self.Mnode = np.zeros((self.Nsubs, 3))               # torque exerted on subs nodes
 
         """description of links"""
         # islink[i, j] is True if nodes i and j are connected via link
@@ -354,6 +357,9 @@ class SubsConfiguration:
         self.Msubslink = np.zeros((self.N, self.Nsubs, 3))   # Torsion from link on subs node
         self.Flink = np.zeros((self.N, self.Nsubs, 3))       # Force from link on cell node
         self.Flink_Hook = np.zeros((self.N, self.Nsubs, 3))  # Hookean component of Flink
+
+        self.p_add = p_add
+        self.p_del = p_del
 
         """stuff for documentation"""
         self.linksnap = []
@@ -454,7 +460,7 @@ class SubsConfiguration:
         self.updateDists(X)
         self.updateLinkForces(Phi, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds)
         self.Fnode = np.sum(self.Flink, axis=0)
-        # self.Mnode = np.sum(self.Mcelllink, axis=0)
+        self.Mnode = np.sum(self.Mcelllink, axis=0)
         return np.concatenate((np.sum(self.Flink, axis=1), np.sum(self.Mcelllink, axis=1)), axis=1).flatten()
 
     def getLinkList(self):
@@ -476,10 +482,16 @@ class SubsConfiguration:
         self.d0[inds] += 0.05 * (scipy.linalg.norm(self.Flink_Hook, axis=2)[inds] - 2.) * dt
         self.d0 += stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
 
+    def rotate_subs(self, dt, creep=0.1):
+        rotmat = getRotMatArray(creep * dt * self.Mnode)
+        self.tsubs = np.einsum("ijk,lik->lij", rotmat, self.tsubs)
+        self.normsubs = np.einsum("ijk,lik->lij", rotmat, self.normsubs)
+
 
 class CellMech:
     def __init__(self, num_cells, num_subs=None, dt=0.01, nmax=300, qmin=0.001, d0_0=1, force_limit=15., p_add=1.,
-                 p_del=0.2, chkx=False, d0max=2., dims=3, isF0=False, isanchor=False, issubs=False):
+                 p_del=0.2, p_add_subs=1., p_del_subs=0.2, chkx=False, d0max=2., dims=3,
+                 isF0=False, isanchor=False, issubs=False):
 
         self.dims = dims
         self.issubs = issubs
@@ -494,18 +506,18 @@ class CellMech:
         # parameters to add/remove links
         self.d0_0 = d0_0
         self.force_limit = force_limit
-        self.p_add = p_add
-        self.p_del = p_del
         self.chkx = chkx
         self.d0max = d0max
 
         """stuff for documentation"""
         self.snaptimes = []
 
-        self.mynodes = NodeConfiguration(num=num_cells, dims=dims, d0_0=d0_0, isF0=isF0, isanchor=isanchor)
+        self.mynodes = NodeConfiguration(num=num_cells, p_add=p_add, p_del=p_del,
+                                         dims=dims, d0_0=d0_0, isF0=isF0, isanchor=isanchor)
 
         if self.issubs is True:
-            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0)
+            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0,
+                                            p_add=p_add_subs, p_del=p_del_subs)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
@@ -514,7 +526,8 @@ class CellMech:
             self.makesnap = lambda t: self.makesnap_nosubs(t)
             self.addLinkList = lambda: self.addLinkList_nosubs()
         elif self.issubs is "lonesome":
-            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0)
+            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0,
+                                            p_add=p_add_subs, p_del=p_del_subs)
             self.mechEquilibrium = lambda: self.mechEquilibrium_lonesome()
             self.makesnap = lambda t: self.makesnap_lonesome(t)
             self.addLinkList = lambda: self.addLinkList_lonesome()
@@ -564,7 +577,8 @@ class CellMech:
         event.terminal = True
         event.direction = -1
 
-        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3)
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3,
+                        subs=self.mysubs)
         x = res.y.reshape((self.N, 6, len(res.t)))
         self.mynodes.nodesX = x[:, :3, -1]
         self.mynodes.nodesPhi = x[:, 3:, -1]
@@ -587,7 +601,8 @@ class CellMech:
         event.terminal = True
         event.direction = -1
 
-        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3)
+        res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, method='LSODA', events=[event], atol=1e-3,
+                        subs=self.mysubs)
         x = res.y.reshape((self.N, 6, len(res.t)))
         self.mynodes.nodesX = x[:, :3, -1]
         self.mynodes.nodesPhi = x[:, 3:, -1]
@@ -682,7 +697,7 @@ class CellMech:
             self.mynodes.removelink(badlink[0], badlink[1])
 
     def delLinkList(self):
-        to_del = []
+        del_links, del_probs, del_bools = [], [], []
         linksum = 0
         if self.issubs:
             linklist = self.mysubs.getLinkList()
@@ -692,7 +707,9 @@ class CellMech:
                     continue
                 f = scipy.linalg.norm(self.mysubs.Flink[link[0], link[1]])
                 p = exp(f / self.force_limit)
-                to_del.append((link, p, True))
+                del_links.append(link)
+                del_probs.append(p * self.mysubs.p_del)
+                del_bools.append(True)
         linklist = self.mynodes.getLinkList()
         linksum += len(linklist)
         if linksum == 1:
@@ -702,8 +719,10 @@ class CellMech:
                 continue            # compressed links are stable
             f = scipy.linalg.norm(self.mynodes.Flink[link[0], link[1]])
             p = exp(f / self.force_limit)
-            to_del.append((link, p, False))
-        return to_del
+            del_links.append(link)
+            del_probs.append(p * self.mysubs.p_add)
+            del_bools.append(False)
+        return np.array([del_links, del_probs, del_bools])
 
     def tryLink_notsubs(self, n1, n2):
         if self.mynodes.islink[n1, n2]:
@@ -728,48 +747,59 @@ class CellMech:
         return d  # true: d>0
 
     def addLinkList_nosubs(self):
-        to_add = []
+        add_links, add_probs, add_bools = [], [], []
         for i, j in VoronoiNeighbors(self.mynodes.nodesX, vodims=self.dims):
             d = self.tryLink_notsubs(i, j)
             if d > 1e-5:
                 p = (1 - (d / self.d0max))
-                to_add.append(((i, j), p))
-        return to_add
+                add_links.append((i, j))
+                add_probs.append(p * self.mynodes.p_add)
+                add_bools.append(False)
+        return np.array([add_links, add_probs, add_bools])
 
     def addLinkList_withsubs(self):
-        to_add = []
+        add_links, add_probs, add_bools = [], [], []
         allnodes = np.concatenate((self.mynodes.nodesX, self.mysubs.nodesX))
         for i, j in VoronoiNeighbors(allnodes, vodims=self.dims):
             if j >= self.N:
+                boo = True
                 if i < self.N:
                     d = self.tryLink_issubs(i, j - self.N)
+                    boo = True
                 else:
                     d = -1
             else:
                 d = self.tryLink_notsubs(i, j)
+                boo = False
             if d > 1e-5:
                 p = (1 - (d / self.d0max))
-                to_add.append(((i, j), p))
-        return to_add
+                add_links.append((i, j))
+                if boo:
+                    add_probs.append(p * self.mysubs.p_add)
+                else:
+                    add_probs.append(p * self.mynodes.p_add)
+                add_bools.append(boo)
+        return np.array([add_links, add_probs, add_bools])
 
     def addLinkList_lonesome(self):
-        to_add = []
+        add_links, add_probs, add_bools = [], [], []
         for i in range(self.N):
             for j in range(self.mysubs.Nsubs):
                 d = self.tryLink_issubs(i, j)
                 if d > 1e-5:
                     # p = sqrt(1 - (d * d / (self.d0max * self.d0max)))
                     p = 1 - (d  / self.d0max)
-                    to_add.append(((i, j + self.N), p))
-        return to_add
+                    add_links.append((i, j + self.N))
+                    add_probs.append(p * self.mysubs.p_add)
+                    add_bools.append(True)
+        return np.array([add_links, add_probs, add_bools])
 
     def pickEvent(self, to_del, to_add):
-        s1 = 0.
-        for (l, p, boo) in to_del:
-            s1 += p * self.p_del
-        s2 = 0.
-        for (q, p) in to_add:
-            s2 += p * self.p_add
+        l_del, p_del, boo_del = to_del
+        s1 = np.sum(p_del)
+
+        l_add, p_add, boo_add = to_add
+        s2 = np.sum(p_add)
 
         S = s1 + s2
         if S < 1e-7:
@@ -782,33 +812,34 @@ class CellMech:
 
         r = S * npr.random()
         if r < s1:  # we will remove a link
-            for (l, p, boo) in to_del:
-                r = r - p * self.p_del
-                if r < 0:
-                    if not boo:
-                        self.mynodes.removelink(l[0], l[1])
-                        return dt
-                    else:
-                        self.mysubs.removelink(l[0], l[1])
-                        return dt
+            R = r - np.cumsum(p_del)
+            ni = np.where(R < 0)[0][0]
+            if not boo_del[ni]:
+                self.mynodes.removelink(l_del[ni][0], l_del[ni][1])
+                return dt
+            else:
+                self.mysubs.removelink(l_del[ni][0], l_del[ni][1])
+                return dt
+
         r = r - s1
         if r < s2:  # we will add a link
-            for ((n1, n2), p) in to_add:
-                r = r - p * self.p_add
-                if r < 0:
-                    if n2 < self.N:
-                        self.mynodes.addlink(n1, n2)
-                        return dt
-                    else:
-                        self.mysubs.addlink(n1, n2 - self.N, self.mynodes.nodesPhi[n1])
-                        return dt
+            R = r - np.cumsum(p_add)
+            ni = np.where(R < 0)[0][0]
+            if not boo_add[ni]:
+                self.mynodes.addlink(l_add[ni][0], l_add[ni][1])
+                return dt
+            else:
+                n1 = l_add[ni][0]
+                n2 = l_add[ni][1]
+                self.mysubs.addlink(n1, n2 - self.N, self.mynodes.nodesPhi[n1])
+                return dt
 
     def update_d0(self, dt, stoch=0.2):
-        # self.mynodes.default_update_d0(dt, stoch=stoch)
-        self.mynodes.fixf_update_d0(dt, stoch=stoch)
+        self.mynodes.default_update_d0(dt, stoch=stoch)
+        # self.mynodes.fixf_update_d0(dt, stoch=stoch)
         if self.issubs is not False:
-            # self.mysubs.default_update_d0(dt, stoch=stoch)
-            self.mysubs.fixf_update_d0(dt, stoch=stoch)
+            self.mysubs.default_update_d0(dt, stoch=stoch)
+            # self.mysubs.fixf_update_d0(dt, stoch=stoch)
 
     def modlink(self):
         if self.chkx:
@@ -879,9 +910,9 @@ class CellMech:
         while t < tmax:
             dt = self.mechEquilibrium()
             t += dt
-            if record:
-                self.makesnap(t)
-            update_progress(t / tmax)
+            # if record:
+            #     self.makesnap(t)
+            # update_progress(t / tmax)
             dt = self.modlink()
             t += dt
             if record:

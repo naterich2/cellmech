@@ -11,31 +11,34 @@ npr.seed(seed=0)
 
 if __name__ == '__main__':
 
-    Lmax = 10
+    Lmax = 5
+    Lsubs = 10
     N = None
+    Nsubs = None
 
     bend = 10.0
     twist = 1.0
     dt = 0.01
     nmax = 300
     qmin = 0.001
-    dims = 2
+    dims = 3
 
     d0min = 0.8  # min distance between cells
     d0max = 2.  # max distance connected by links
     d0_0 = 1.  # equilibrium distance of links
     p_add = 1.  # rate to add links
+    p_add_subs = 1.
     p_del = 0.1  # base rate to delete links
+    p_del_subs = 1.
     chkx = False  # check if links overlap?
 
-    """
     # substrate
 
-    config = initialconfig.square_wsubs(L=Lmax, N=N, Nsubs=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
-                                          p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
+    config = initialconfig.square_wsubs(L=Lmax, Lsubs=Lsubs, N=N, Nsubs=Nsubs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
+                                        p_add=p_add, p_add_subs=p_add_subs, p_del=p_del, p_del_subs=p_del_subs,
+                                        chkx=chkx, d0max=d0max, d0min=d0min, dims=dims)
 
     config.mynodes.updateDists(config.mynodes.nodesX)
-
     config.mysubs.updateDists(config.mynodes.nodesX)
 
     allnodes = np.concatenate((config.mynodes.nodesX, config.mysubs.nodesX), axis=0)
@@ -50,12 +53,12 @@ if __name__ == '__main__':
                 config.mysubs.addlink(i, j - config.N, config.mynodes.nodesPhi[i])
     
     configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
-        config.timeevo(50., record=True)
+        config.timeevo(15.65, record=True)
 
     config.savedata()
-    animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces)
+    animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
     mlab.show()
-    """
+
     """
     # bilayer
 
@@ -105,7 +108,7 @@ if __name__ == '__main__':
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
     """
-
+    """
     #2D square
     config = initialconfig.square(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin,
                                   d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, d0min=d0min, dims=dims)
@@ -116,20 +119,9 @@ if __name__ == '__main__':
         if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
             config.mynodes.addlink(i, j)
 
-    percent = 0.1
-    tedge = Lmax * (0.5 - percent)
-    bedge = -tedge
-
-    for i in range(config.N):
-        if np.any(config.mynodes.nodesX[i] > tedge) or np.any(config.mynodes.nodesX[i] < bedge):
-            config.mynodes.knode[i] = 1.5
-
-    config.mynodes.isanchor = True
-    config.mynodes.X0 = config.mynodes.nodesX
-    config.mynodes.reset_nodesum()
-
     configs, links, nodeforces, linkforces, ts = config.timeevo(80., record=True)
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
+    """
 

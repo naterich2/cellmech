@@ -29,7 +29,7 @@ if __name__ == '__main__':
     p_add = 1.  # rate to add links
     p_add_subs = 1.
     p_del = 0.1  # base rate to delete links
-    p_del_subs = 1.
+    p_del_subs = 0.1
     chkx = False  # check if links overlap?
 
     # substrate
@@ -53,7 +53,7 @@ if __name__ == '__main__':
                 config.mysubs.addlink(i, j - config.N, config.mynodes.nodesPhi[i])
     
     configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
-        config.timeevo(15.65, record=True)
+        config.timeevo(50., record=True)
 
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)

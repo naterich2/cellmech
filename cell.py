@@ -4,6 +4,7 @@ from __future__ import division
 
 import sys
 import warnings
+import os
 from math import exp, log, sqrt
 
 import numpy as np
@@ -155,7 +156,7 @@ class NodeConfiguration:
         self.norm = np.zeros((self.N, self.N, 3))        # normal vector of link at node
         self.Mlink = np.zeros((self.N, self.N, 3))       # Torsion from link on node
         self.Flink = np.zeros((self.N, self.N, 3))       # Force from link on node
-        self.Flink_Hook = np.zeros((self.N, self.N, 3))  # Hookean component of Flink
+        self.Flink_tens = np.zeros((self.N, self.N))     # Tensile component of Flink
 
         self.p_add = p_add
         self.p_del = p_del
@@ -229,7 +230,7 @@ class NodeConfiguration:
     def removelink(self, ni, mi):
         self.islink[ni, mi], self.islink[mi, ni] = False, False
         self.Flink[ni, mi], self.Flink[mi, ni], self.Mlink[ni, mi], self.Mlink[mi, ni] = null, null, null, null
-        self.Flink_Hook[ni, mi], self.Flink[mi, ni] = null, null
+        self.Flink_tens[ni, mi], self.Flink_tens[mi, ni] = 0, 0
         self.t[ni, mi], self.t[mi, ni], self.norm[ni, mi], self.norm[mi, ni] = null, null, null, null
         self.k[ni, mi], self.k[mi, ni], self.d0[ni, mi], self.d0[mi, ni] = 0, 0, 0, 0
 
@@ -289,8 +290,9 @@ class NodeConfiguration:
         M = self.Mlink + np.transpose(self.Mlink, axes=(1, 0, 2))
         M = M[Nodeinds]
 
-        self.Flink_Hook[Nodeinds] = (K * (D - D0))[..., None] * E
-        self.Flink[Nodeinds] = self.Flink_Hook[Nodeinds] + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
+        # Eqs. 10, 13, 14, 15
+        self.Flink_tens[Nodeinds] = K * (D - D0)
+        self.Flink[Nodeinds] = self.Flink_tens[Nodeinds][..., None] * E + np.cross(M, E) / D[:, None]
 
     def getForces(self, x, t, norm, normT, bend, twist, k, d0, nodeinds):
         X = x.reshape(self.N, 6)
@@ -321,8 +323,7 @@ class NodeConfiguration:
         myrandom = npr.random((self.randomlength,))
         self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = myrandom, myrandom
         # magic number 0.2 and 0.05??
-        inds = np.where(self.d <= self.d0)
-        self.d0[inds] += 0.05 * (scipy.linalg.norm(self.Flink_Hook, axis=2)[inds] - 2.) * dt
+        self.d0 += 0.05 * (self.Flink_tens - 2.) * dt
         self.d0 += stoch * (2 * sqrt(dt) * self.randomsummand - sqrt(dt))
 
 
@@ -356,7 +357,7 @@ class SubsConfiguration:
         self.Mcelllink = np.zeros((self.N, self.Nsubs, 3))   # Torsion from link on cell node
         self.Msubslink = np.zeros((self.N, self.Nsubs, 3))   # Torsion from link on subs node
         self.Flink = np.zeros((self.N, self.Nsubs, 3))       # Force from link on cell node
-        self.Flink_Hook = np.zeros((self.N, self.Nsubs, 3))  # Hookean component of Flink
+        self.Flink_tens = np.zeros((self.N, self.Nsubs))  # Tensile component of Flink
 
         self.p_add = p_add
         self.p_del = p_del
@@ -401,7 +402,7 @@ class SubsConfiguration:
 
     def removelink(self, ni, mi):
         self.islink[ni, mi] = False
-        self.Flink[ni, mi], self.Flink_Hook[ni, mi] = null, null
+        self.Flink[ni, mi], self.Flink_tens[ni, mi] = null, 0
         self.Mcelllink[ni, mi], self.Msubslink[ni, mi] = null, null
         self.tcell[ni, mi], self.tsubs[ni, mi], self.normcell[ni, mi], self.normsubs[ni, mi] = null, null, null, null
         self.k[ni, mi], self.d0[ni, mi] = 0, 0
@@ -450,8 +451,9 @@ class SubsConfiguration:
         M = self.Mcelllink + self.Msubslink
         M = M[Nodeinds]
 
-        self.Flink_Hook[Nodeinds] = (K * (D - D0))[..., None] * E
-        self.Flink[Nodeinds] = self.Flink_Hook[Nodeinds] + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
+        # Eqs. 10, 13, 14, 15
+        self.Flink_tens[Nodeinds] = (K * (D - D0))
+        self.Flink[Nodeinds] = self.Flink_tens[Nodeinds][..., None] * E + np.cross(M, E) / D[:, None]
 
     def getForces(self, x, tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds):
         X = x.reshape(self.N, 6)
@@ -478,8 +480,7 @@ class SubsConfiguration:
     def fixf_update_d0(self, dt, stoch):
         subsrandom = npr.random((self.N, self.Nsubs))
         # magic number 0.2 and 0.05??
-        inds = np.where(self.d <= self.d0)
-        self.d0[inds] += 0.05 * (scipy.linalg.norm(self.Flink_Hook, axis=2)[inds] - 2.) * dt
+        self.d0 += 0.05 * (self.Flink_tens - 2.) * dt
         self.d0 += stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
 
     def rotate_subs(self, dt, creep=0.1):
@@ -881,26 +882,28 @@ class CellMech:
         self.snaptimes.append(t)
 
     def savedata(self, savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True, savet=True):
+        if not os.path.isdir("./res"):
+            os.mkdir("./res")
         if savenodes_r:
-            np.save("nodesr", self.mynodes.nodesnap)
+            np.save("res/nodesr", self.mynodes.nodesnap)
         if savenodes_f:
-            np.save("nodesf", self.mynodes.fnodesnap)
+            np.save("res/nodesf", self.mynodes.fnodesnap)
         if savelinks:
-            np.save("links", self.mynodes.linksnap)
+            np.save("res/links", self.mynodes.linksnap)
         if savelinks_f:
-            np.save("linksf", self.mynodes.flinksnap)
+            np.save("res/linksf", self.mynodes.flinksnap)
         if savet:
-            np.save("ts", self.snaptimes)
+            np.save("res/ts", self.snaptimes)
 
         if self.issubs:
             if savenodes_r:
-                np.save("subsnodesr", self.mysubs.nodesX)
+                np.save("res/subsnodesr", self.mysubs.nodesX)
             if savenodes_f:
-                np.save("subsnodesf", self.mysubs.fnodesnap)
+                np.save("res/subsnodesf", self.mysubs.fnodesnap)
             if savelinks:
-                np.save("subslinks", self.mysubs.linksnap)
+                np.save("res/subslinks", self.mysubs.linksnap)
             if savelinks_f:
-                np.save("subslinksf", self.mysubs.flinksnap)
+                np.save("res/subslinksf", self.mysubs.flinksnap)
 
     def timeevo(self, tmax, isinit=True, isfinis=True, record=False):
         t = 0.

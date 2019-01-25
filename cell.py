@@ -240,8 +240,7 @@ class NodeConfiguration:
     def updateDists(self, X):
         dX = X - X[:, None, :]
         self.d = scipy.linalg.norm(dX, axis=2)
-        e_masked = ma.array(dX) / ma.array(self.d[..., None])
-        self.e = ma.getdata(e_masked.filled(0))
+        self.e = ma.getdata((ma.array(dX) / ma.array(self.d[..., None])).filled(0))
 
     def compactStuffINeed(self):
         # get only those parts of the big arrays that are actually needed
@@ -274,20 +273,22 @@ class NodeConfiguration:
         E = self.e[Nodeinds]
         D = self.d[Nodeinds]
         NodesPhi = PHI[Nodeinds[0]]
-        NodesPhiT = PHI[Nodeinds[1]]
+        # NodesPhiT = PHI[Nodeinds[1]]
+
+        rot = getRotMatArray(NodesPhi)
 
         # rotated version of Norm and NormT to fit current setup
-        NormNow = np.einsum("ijk, ik -> ij", getRotMatArray(NodesPhi), Norm)
-        NormTNow = np.einsum("ijk, ik -> ij", getRotMatArray(NodesPhiT), NormT)
+        NormNow = np.einsum("ijk, ik -> ij", rot, Norm)
+        NormTNow = np.einsum("ijk, ik -> ij", getRotMatArray(PHI[Nodeinds[1]]), NormT)
 
         # rotated version of t to fit current setup
-        TNow = np.einsum("ijk, ik -> ij", getRotMatArray(NodesPhi), T)
+        # TNow = np.einsum("ijk, ik -> ij", getRotMatArray(NodesPhi), T)
 
         # calculated new vector \bm{\tilde{n}}_{A, l}
         NormTilde = getNormvec(NormNow - np.einsum("ij, ij -> i", NormNow, E)[:, None] * E)
         NormTTilde = getNormvec(NormTNow - np.einsum("ij, ij -> i", NormTNow, E)[:, None] * E)
 
-        self.Mlink[Nodeinds] = Bend[..., None] * np.cross(TNow, E) + \
+        self.Mlink[Nodeinds] = Bend[..., None] * np.cross(np.einsum("ijk, ik -> ij", rot, T), E) + \
                                Twist[..., None] * np.cross(NormTilde, NormTTilde)  # Eq 5
 
         M = self.Mlink + np.transpose(self.Mlink, axes=(1, 0, 2))
@@ -415,8 +416,7 @@ class SubsConfiguration:
     def updateDists(self, X):
         dX = self.nodesX - X[:, None, :]
         self.d = scipy.linalg.norm(dX, axis=2)
-        e_masked = ma.array(dX) / ma.array(self.d[..., None])
-        self.e = ma.getdata(e_masked.filled(0))
+        self.e = ma.getdata((ma.array(dX) / ma.array(self.d[..., None])).filled(0))
 
     def compactStuffINeed(self):
         # get only those parts of the big arrays that are actually needed
@@ -435,28 +435,28 @@ class SubsConfiguration:
     def updateLinkForces(self, PHI, PHIsubs, TCell, TSubs, NormCell, NormSubs, Bend, Twist, K, D0, Nodeinds):
         E = self.e[Nodeinds]
         D = self.d[Nodeinds]
-        NodesPhiCell = PHI[Nodeinds[0]]
-        NodesPhiSubs = PHIsubs[Nodeinds[1]]
+        # NodesPhiCell = PHI[Nodeinds[0]]
+        # NodesPhiSubs = PHIsubs[Nodeinds[1]]
 
-        rotCell = getRotMatArray(NodesPhiCell)
-        rotSubs = getRotMatArray(NodesPhiSubs)
+        rotCell = getRotMatArray(PHI[Nodeinds[0]])
+        rotSubs = getRotMatArray(PHIsubs[Nodeinds[1]])
 
         # rotated version of Norm and NormT to fit current setup
         NormCellNow = np.einsum("ijk, ik -> ij", rotCell, NormCell)
         NormSubsNow = np.einsum("ijk, ik -> ij", rotSubs, NormSubs)
 
         # rotated version of t to fit current setup
-        TCellNow = np.einsum("ijk, ik -> ij", rotCell, TCell)
-        TSubsNow = np.einsum("ijk, ik -> ij", rotSubs, TSubs)
+        # TCellNow = np.einsum("ijk, ik -> ij", rotCell, TCell)
+        # TSubsNow = np.einsum("ijk, ik -> ij", rotSubs, TSubs)
 
         # calculated new vector \bm{\tilde{n}}_{A, l}
         NormCellTilde = getNormvec(NormCellNow - np.einsum("ij, ij -> i", NormCellNow, E)[:, None] * E)
         NormSubsTilde = getNormvec(NormSubsNow - np.einsum("ij, ij -> i", NormSubsNow, -E)[:, None] * (-E))
 
-        self.Mcelllink[Nodeinds] = Bend[..., None] * np.cross(TCellNow, E) + \
+        self.Mcelllink[Nodeinds] = Bend[..., None] * np.cross(np.einsum("ijk, ik -> ij", rotCell, TCell), E) + \
                                    Twist[..., None] * np.cross(NormCellTilde, NormSubsTilde)  # Eq 5 for cells
 
-        self.Msubslink[Nodeinds] = Bend[..., None] * np.cross(TSubs, -E) + \
+        self.Msubslink[Nodeinds] = Bend[..., None] * np.cross(np.einsum("ijk, ik -> ij", rotSubs, TSubs), -E) + \
                                    Twist[..., None] * np.cross(NormSubsTilde, NormCellTilde)  # Eq 5 for substrate
 
         M = self.Mcelllink + self.Msubslink
@@ -547,7 +547,7 @@ class CellMech:
 
     def mechEquilibrium_nosubs(self):
         # reshape X and Phi for solveivp
-        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=0).flatten()
+        x = np.concatenate((self.mynodes.nodesX, self.mynodes.nodesPhi), axis=0).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
 
         # produce fun for solve_ivp as lambda
@@ -570,8 +570,7 @@ class CellMech:
         return res.t[-1]
 
     def mechEquilibrium_withsubs(self):
-        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy(), self.mysubs.nodesPhi.copy()),
-                           axis=0).flatten()
+        x = np.concatenate((self.mynodes.nodesX, self.mynodes.nodesPhi, self.mysubs.nodesPhi), axis=0).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
         tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
 
@@ -598,8 +597,7 @@ class CellMech:
         return res.t[-1]
 
     def mechEquilibrium_lonesome(self):
-        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy(), self.mysubs.nodesPhi.copy()),
-                           axis=0).flatten()
+        x = np.concatenate((self.mynodes.nodesX, self.mynodes.nodesPhi, self.mysubs.nodesPhi), axis=0).flatten()
         tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
 
         # produce fun for solve_ivp as lambda
@@ -609,7 +607,7 @@ class CellMech:
         # produce event function to check whether to end solve_ivp
         def event(temp, y):
             k1 = self.mysubs.getForces(y, tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss)
-            return np.max(np.abs(k1) - self.qmin)
+            return np.max(np.abs(k1[:self.N2]) - self.qmin)
         event.terminal = True
         event.direction = -1
 
@@ -931,7 +929,7 @@ class CellMech:
             t += dt
             if record:
                 self.makesnap(t)
-            update_progress(t / tmax)
+            # update_progress(t / tmax)
         if record and isfinis:
             self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
             self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)

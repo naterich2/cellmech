@@ -19,7 +19,6 @@ def square(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, d0min, dims):
     c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del,
                  chkx=chkx, d0max=d0max, dims=dims, issubs=False)
 
-
     for ni in range(N):
         while True:
             R1 = generatePoint(L)
@@ -40,7 +39,8 @@ def cube(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, stretch=1.):
         print "N decission overriden because of possible conflict with Lmax"
     N = int(L ** 3)
 
-    c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=3, issubs=False)
+    c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=3,
+                 issubs=False)
 
     x0 = - stretch * L / 2.
     for ni in range(L):
@@ -164,7 +164,7 @@ def savesquare(d0min, L=10, N=None):
     return R
 
 
-def fromdefault(R, L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, dims):
+def fromdefault(R, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, dims):
     N = len(R)
     c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, p_add_subs=p_add, 
                  p_del_subs=p_del, chkx=chkx, d0max=d0max, dims=dims, issubs=False)

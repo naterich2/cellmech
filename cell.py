@@ -714,7 +714,7 @@ class CellMech:
         linklist = self.mynodes.getLinkList()
         linksum += len(linklist)
         if linksum == 1:
-            return []
+            return [[], [], []]
         for link in linklist:
             if self.mynodes.d[link[0], link[1]] < self.mynodes.d0[link[0], link[1]]:
                 continue            # compressed links are stable

@@ -1,6 +1,6 @@
 import numpy as np
 from animate import *
-"""
+
 configs = np.load("res/nodesr.npy")
 links = np.load("res/links.npy")
 nodeforces = np.load("res/nodesf.npy")
@@ -20,7 +20,7 @@ subsnodeforces = np.load("res/subsnodesf.npy")
 subslinkforces = np.load("res/subslinksf.npy")
 
 animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
-
+"""
 """
 configs = np.load("res/nodesr1.npy")
 links = np.load("res/links1.npy")

@@ -9,7 +9,7 @@ npr.seed(0)
 if __name__ == '__main__':
 
     L = 5
-    subs_densities = [1.]
+    subs_densities = [2.]
 
     bend = 10.0
     twist = 1.0
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     d0max = 2.  # max distance connected by links
     d0_0 = 1.  # equilibrium distance of links
     p_add = 1.  # rate to add links
-    p_del = .5  # base rate to delete links
+    p_del = 1.  # base rate to delete links
     chkx = False  # check if links overlap?
 
     # onelonesome
@@ -39,11 +39,12 @@ if __name__ == '__main__':
                 break
 
         configs, trashlinks, nodeforces, trashlinkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
-            config.timeevo(200., record=True)
+            config.timeevo(20., record=True)
 
         links = None
         linkforces = None
-        # config.savedata()
-        animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
+        config.savedata()
+        animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces,
+                       showsubs=False)
         mlab.show()
 

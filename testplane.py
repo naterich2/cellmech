@@ -4,7 +4,7 @@ from cell import *
 from animate import *
 import initialconfig
 # import cProfile
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 npr.seed(seed=0)
 
 #######################################################
@@ -12,7 +12,7 @@ npr.seed(seed=0)
 if __name__ == '__main__':
 
     Lmax = 5
-    Lsubs = 10
+    Lsubs = 7
     N = None
     Nsubs = None
 
@@ -123,5 +123,4 @@ if __name__ == '__main__':
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
-
 

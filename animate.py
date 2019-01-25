@@ -74,6 +74,8 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
     nodeForces = pack(nodeForces, subsnodeForces)
     linkForces = pack(linkForces, subslinkForces)
 
+    linkForces = [scipy.linalg.norm(lFstep, axis=1) for lFstep in linkForces]
+
     vmaxcells = np.max(scipy.linalg.norm(nodeForces, axis=2))
     vmaxlinks = max([np.max(timestep) for timestep in linkForces])
 

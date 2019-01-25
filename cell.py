@@ -721,7 +721,7 @@ class CellMech:
             f = scipy.linalg.norm(self.mynodes.Flink[link[0], link[1]])
             p = exp(f / self.force_limit)
             del_links.append(link)
-            del_probs.append(p * self.mysubs.p_add)
+            del_probs.append(p * self.mynodes.p_del)
             del_bools.append(False)
         return np.array([del_links, del_probs, del_bools])
 
@@ -856,7 +856,7 @@ class CellMech:
         self.mynodes.fnodesnap.append(self.mynodes.Fnode.copy())
         linkList = self.mynodes.getLinkList()
         self.mynodes.linksnap.append(linkList)
-        self.mynodes.flinksnap.append(scipy.linalg.norm(self.mynodes.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
+        self.mynodes.flinksnap.append(self.mynodes.Flink[linkList[..., 0], linkList[..., 1]])
         self.snaptimes.append(t)
 
     def makesnap_withsubs(self, t):
@@ -865,10 +865,10 @@ class CellMech:
         self.mysubs.fnodesnap.append(self.mysubs.Fnode.copy())
         linkList = self.mynodes.getLinkList()
         self.mynodes.linksnap.append(linkList)
-        self.mynodes.flinksnap.append(scipy.linalg.norm(self.mynodes.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
+        self.mynodes.flinksnap.append(self.mynodes.Flink[linkList[..., 0], linkList[..., 1]])
         linkList = self.mysubs.getLinkList()
         self.mysubs.linksnap.append(linkList)
-        self.mysubs.flinksnap.append(scipy.linalg.norm(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]], axis=1))
+        self.mysubs.flinksnap.append(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]])
         self.snaptimes.append(t)
 
     def makesnap_lonesome(self, t):
@@ -877,8 +877,7 @@ class CellMech:
         self.mysubs.fnodesnap.append(self.mysubs.Fnode.copy())
         linkList = self.mysubs.getLinkList()
         self.mysubs.linksnap.append(linkList)
-        self.mysubs.flinksnap.append(scipy.linalg.norm(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]],
-                                                       axis=1))
+        self.mysubs.flinksnap.append(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]])
         self.snaptimes.append(t)
 
     def savedata(self, savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True, savet=True):

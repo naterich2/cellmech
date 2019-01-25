@@ -29,9 +29,9 @@ if __name__ == '__main__':
     p_add = 1.  # rate to add links
     p_add_subs = 1.
     p_del = 0.1  # base rate to delete links
-    p_del_subs = 0.1
+    p_del_subs = 1.
     chkx = False  # check if links overlap?
-
+    """
     # substrate
 
     config = initialconfig.square_wsubs(L=Lmax, Lsubs=Lsubs, N=N, Nsubs=Nsubs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
@@ -58,7 +58,7 @@ if __name__ == '__main__':
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
     mlab.show()
-
+    """
     """
     # bilayer
 
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
     """
-    """
+
     #2D square
     config = initialconfig.square(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin,
                                   d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, d0min=d0min, dims=dims)
@@ -119,9 +119,9 @@ if __name__ == '__main__':
         if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
             config.mynodes.addlink(i, j)
 
-    configs, links, nodeforces, linkforces, ts = config.timeevo(80., record=True)
+    configs, links, nodeforces, linkforces, ts = config.timeevo(10., record=True)
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
-    """
+
 

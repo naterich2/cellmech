@@ -46,14 +46,14 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
     fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
 
     if showsubs:
-        upto = -1
+        upto = None
     else:
         upto = len(Configs[0])
 
     if nodeForces is None:
         nodeForces = np.zeros(Configs.shape)
     if linkForces is None and Links is not None:
-        linkForces = np.zeros((len(Links), len(Links[0])))
+        linkForces = np.zeros((len(Links), len(Links[0]), 3))
 
     if Subs is not None:
         Subs = np.tile(Subs, (len(Configs), 1, 1))

@@ -798,7 +798,7 @@ class CellMech:
                 d = self.tryLink_issubs(i, j)
                 if d > 1e-5:
                     # p = sqrt(1 - (d * d / (self.d0max * self.d0max)))
-                    p = 1 - (d  / self.d0max)
+                    p = 1 - (d / self.d0max)
                     add_links.append((i, j + self.N))
                     add_probs.append(p * self.mysubs.p_add)
                     add_bools.append(True)
@@ -929,7 +929,7 @@ class CellMech:
             t += dt
             if record:
                 self.makesnap(t)
-            # update_progress(t / tmax)
+            update_progress(t / tmax)
         if record and isfinis:
             self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
             self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
@@ -945,13 +945,13 @@ class CellMech:
     def oneequil(self):
         linkList = self.mynodes.getLinkList()
         # reshape X and Phi for solveivp
-        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
+        x = np.concatenate((self.mynodes.nodesX, self.mynodes.nodesPhi), axis=0).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
 
         # produce fun for solve_ivp as lambda
         def notatallfun(temp, y): return self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
 
-        # produce event function to check wether to end solve_ivp
+        # produce event function to check whether to end solve_ivp
         def event(temp, y):
             k1 = self.mynodes.getForces(y, t, norm, normT, bend, twist, k, d0, nodeinds)
             return np.max(np.abs(k1) - self.qmin)
@@ -959,14 +959,16 @@ class CellMech:
         event.direction = -1
 
         res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, events=[event], method="LSODA", atol=1e-3)
+        x = res.y.reshape((-1, 3, len(res.t)))
         self.snaptimes = res.t
-        self.mynodes.nodesnap = np.transpose(res.y.reshape((self.N, 6, len(self.snaptimes))), axes=(2, 0, 1))[..., :3]
-        return self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes
+        self.mynodes.nodesnap = np.transpose(x[:self.N, :, :], axes=(2, 0, 1))
+        self.mynodes.linksnap = np.tile(linkList, (len(self.snaptimes), 1, 1))
+        return self.mynodes.nodesnap, self.mynodes.linksnap, None, None, self.snaptimes
 
     def oneequil_withsubs(self):
         linkList = self.mynodes.getLinkList()
         # reshape X and Phi for solveivp
-        x = np.concatenate((self.mynodes.nodesX.copy(), self.mynodes.nodesPhi.copy()), axis=1).flatten()
+        x = np.concatenate((self.mynodes.nodesX, self.mynodes.nodesPhi, self.mysubs.nodesPhi), axis=0).flatten()
         t, norm, normT, bend, twist, k, d0, nodeinds = self.mynodes.compactStuffINeed()
         tcell, tsubs, normcell, normsubs, bends, twists, ks, d0s, nodeindss = self.mysubs.compactStuffINeed()
 
@@ -984,6 +986,7 @@ class CellMech:
         event.direction = -1
 
         res = solve_ivp(fun=notatallfun, t_span=[0, self.tmax], y0=x, events=[event], method="LSODA", atol=1e-3)
+        x = res.y.reshape((-1, 3, len(res.t)))
         self.snaptimes = res.t
-        self.mynodes.nodesnap = np.transpose(res.y.reshape((self.N, 6, len(self.snaptimes))), axes=(2, 0, 1))[..., :3]
+        self.mynodes.nodesnap = np.transpose(x[:self.N, :, :], axes=(2, 0, 1))
         return self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes

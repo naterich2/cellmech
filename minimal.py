@@ -6,7 +6,7 @@ npr.seed(seed=0)
 
 Lmax = 5
 N = 4
-Nsubs = 4
+Nsubs = 0
 
 bend = 10.0
 twist = 1.0
@@ -76,6 +76,7 @@ c.mynodes.addlink(2, 3, d0=1.)
 
 
 configs, links, nodeforces, linkforces, ts = c.oneequil()
+c.savedata("01_minimal", savelinks_f=False, savenodes_f=False)
 
 animateconfigs(configs, links, nodeforces, linkforces, ts)
 mlab.show()

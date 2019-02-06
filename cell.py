@@ -1,5 +1,3 @@
-#!/usr/bin/python  -u
-
 from __future__ import division
 
 import sys
@@ -108,6 +106,7 @@ def VoronoiNeighbors(positions, vodims=2):
         else:
             n.append((j, i))
     neighbors = set(n)
+
     return neighbors
 
 
@@ -204,6 +203,12 @@ class NodeConfiguration:
         if twist is not None:
             self.twist[mi, ni], self.bend[ni, mi] = twist, twist
 
+        newdX = self.nodesX[mi] - self.nodesX[ni]
+        newd = scipy.linalg.norm(newdX)
+        newe = newdX/newd
+        self.d[ni, mi], self.d[mi, ni] = newd, newd
+        self.e[ni, mi], self.e[mi, ni] = newe, -newe
+
         if d0 is None:
             d0 = self.d[ni, mi]
         self.d0[ni, mi], self.d0[mi, ni] = d0, d0  # equilibrium distance
@@ -232,15 +237,20 @@ class NodeConfiguration:
 
     def removelink(self, ni, mi):
         self.islink[ni, mi], self.islink[mi, ni] = False, False
+        self.d[ni, mi], self.d[mi, ni] = 0, 0
+        self.e[ni, mi], self.e[mi, ni] = null, null
         self.Flink[ni, mi], self.Flink[mi, ni], self.Mlink[ni, mi], self.Mlink[mi, ni] = null, null, null, null
         self.Flink_tens[ni, mi], self.Flink_tens[mi, ni] = 0, 0
         self.t[ni, mi], self.t[mi, ni], self.norm[ni, mi], self.norm[mi, ni] = null, null, null, null
         self.k[ni, mi], self.k[mi, ni], self.d0[ni, mi], self.d0[mi, ni] = 0, 0, 0, 0
 
     def updateDists(self, X):
-        dX = X - X[:, None, :]
-        self.d = scipy.linalg.norm(dX, axis=2)
-        self.e = ma.getdata((ma.array(dX) / ma.array(self.d[..., None])).filled(0))
+        inds0, inds1 = self.getLinkTuple()
+        dX = X[inds1] - X[inds0]
+        d = scipy.linalg.norm(dX, axis=1)
+        e = dX / d[..., None]
+        self.d[inds0, inds1], self.d[inds1, inds0] = d, d
+        self.e[inds0, inds1], self.e[inds1, inds0] = e, -e
 
     def compactStuffINeed(self):
         # get only those parts of the big arrays that are actually needed
@@ -373,7 +383,8 @@ class SubsConfiguration:
         self.fnodesnap = []
         self.flinksnap = []
 
-    def addlink(self, ni, mi, cellphi, t1=None, d0=None, k=None, bend=None, twist=None, n=None, norm1=None, norm2=None):
+    def addlink(self, ni, mi, cellx, cellphi,
+                t1=None, d0=None, k=None, bend=None, twist=None, n=None, norm1=None, norm2=None):
         self.islink[ni, mi] = True
 
         if k is None:
@@ -383,6 +394,11 @@ class SubsConfiguration:
             self.bend[ni, mi] = bend
         if twist is not None:
             self.twist[ni, mi] = twist
+
+        newdX = self.nodesX[mi] - cellx
+        newd = scipy.linalg.norm(newdX)
+        self.d[ni, mi] = newd
+        self.e[ni, mi] = newdX / newd
 
         if d0 is None:
             d0 = self.d[ni, mi]
@@ -409,14 +425,17 @@ class SubsConfiguration:
     def removelink(self, ni, mi):
         self.islink[ni, mi] = False
         self.Flink[ni, mi], self.Flink_tens[ni, mi] = null, 0
+        self.e[ni, mi], self.d[ni, mi] = null, 0
         self.Mcelllink[ni, mi], self.Msubslink[ni, mi] = null, null
         self.tcell[ni, mi], self.tsubs[ni, mi], self.normcell[ni, mi], self.normsubs[ni, mi] = null, null, null, null
         self.k[ni, mi], self.d0[ni, mi] = 0, 0
 
     def updateDists(self, X):
-        dX = self.nodesX - X[:, None, :]
-        self.d = scipy.linalg.norm(dX, axis=2)
-        self.e = ma.getdata((ma.array(dX) / ma.array(self.d[..., None])).filled(0))
+        inds0, inds1 = self.getLinkTuple()
+        dX = self.nodesX[inds1] - X[inds0]
+        d = scipy.linalg.norm(dX, axis=1)
+        self.d[inds0, inds1] = d
+        self.e[inds0, inds1] = dX / d[..., None]
 
     def compactStuffINeed(self):
         # get only those parts of the big arrays that are actually needed
@@ -841,7 +860,7 @@ class CellMech:
             else:
                 n1 = l_add[ni][0]
                 n2 = l_add[ni][1]
-                self.mysubs.addlink(n1, n2 - self.N, self.mynodes.nodesPhi[n1])
+                self.mysubs.addlink(n1, n2 - self.N, self.mynodes.nodesX[n1], self.mynodes.nodesPhi[n1])
                 return dt
 
     def update_d0(self, dt, stoch=0.2):
@@ -962,6 +981,7 @@ class CellMech:
         x = res.y.reshape((-1, 3, len(res.t)))
         self.snaptimes = res.t
         self.mynodes.nodesnap = np.transpose(x[:self.N, :, :], axes=(2, 0, 1))
+        self.mynodes.nodesX = self.mynodes.nodesnap[-1]
         self.mynodes.linksnap = np.tile(linkList, (len(self.snaptimes), 1, 1))
         return self.mynodes.nodesnap, self.mynodes.linksnap, None, None, self.snaptimes
 

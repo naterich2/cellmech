@@ -49,15 +49,15 @@ if __name__ == '__main__':
             else:
                 config.mysubs.addlink(i, j - config.N, config.mynodes.nodesX[i], config.mynodes.nodesPhi[i])
 
-    # cProfile.run('config.timeevo(20.)', sort='cumtime')
-
+    cProfile.run('config.timeevo(20.)', sort='cumtime')
+    """
     configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
         config.timeevo(50., record=True)
 
     config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
     mlab.show()
-
+    """
 
     """
     # bilayer

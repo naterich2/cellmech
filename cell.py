@@ -7,7 +7,6 @@ from math import exp, log, sqrt
 
 import numpy as np
 import numpy.random as npr
-import numpy.ma as ma
 import scipy.linalg
 from myivp.myivp import solve_ivp
 import itertools
@@ -55,25 +54,23 @@ def ccw(A, B, C):
 def getNormvec(v):
     # returns normalized v
     d = scipy.linalg.norm(v, axis=-1)
-    v_masked = ma.array(v) / ma.array(d[..., None])
-    v = ma.getdata(v_masked.filled(0))
-    return v
+    vecinds = np.where(d > 1e-5)
+    return v[vecinds] / d[..., None][vecinds]
 
 
 def getNormtoo(v):
     # returns norm of v and normalized v
     d = scipy.linalg.norm(v, axis=-1)
-    v_masked = ma.array(v) / ma.array(d[..., None])
-    v = ma.getdata(v_masked.filled(0))
-    return v, d
+    vecinds = np.where(d > 1e-5)
+    return v[vecinds] / d[..., None][vecinds], d
 
 
 def getRotMatArray(Phis):
     Thetas = scipy.linalg.norm(Phis, axis=1)
-    Axes_masked = ma.array(Phis) / ma.array(Thetas[..., None])
-    Axes = ma.getdata(Axes_masked.filled(0))
+    phiinds = np.where(Thetas > 1e-5)
+    Phis[phiinds] /= Thetas[..., None][phiinds]
     a = np.cos(Thetas / 2)
-    b, c, d = np.transpose(Axes) * np.sin(Thetas / 2)
+    b, c, d = np.transpose(Phis) * np.sin(Thetas / 2)
     RotMat = np.array([[a * a + b * b - c * c - d * d, 2 * (b * c - a * d), 2 * (b * d + a * c)],
                       [2 * (b * c + a * d), a * a + c * c - b * b - d * d, 2 * (c * d - a * b)],
                       [2 * (b * d - a * c), 2 * (c * d + a * b), a * a + d * d - b * b - c * c]])

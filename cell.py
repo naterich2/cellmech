@@ -55,14 +55,16 @@ def getNormvec(v):
     # returns normalized v
     d = scipy.linalg.norm(v, axis=-1)
     vecinds = np.where(d > 1e-5)
-    return v[vecinds] / d[..., None][vecinds]
+    v[vecinds] /= d[..., None][vecinds]
+    return v
 
 
 def getNormtoo(v):
     # returns norm of v and normalized v
     d = scipy.linalg.norm(v, axis=-1)
     vecinds = np.where(d > 1e-5)
-    return v[vecinds] / d[..., None][vecinds], d
+    v[vecinds] /= d[..., None][vecinds]
+    return v, d
 
 
 def getRotMatArray(Phis):

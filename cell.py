@@ -255,7 +255,7 @@ class NodeConfiguration:
 
         self.k[ni, mi], self.k[mi, ni] = k, k  # spring parameter
         self.bend[mi, ni], self.bend[ni, mi] = bend, bend
-        self.twist[mi, ni], self.bend[ni, mi] = twist, twist
+        self.twist[mi, ni], self.twist[ni, mi] = twist, twist
 
         newdX = self.nodesX[mi] - self.nodesX[ni]
         newd = scipy.linalg.norm(newdX)
@@ -360,7 +360,9 @@ class NodeConfiguration:
         M = self.Mlink + np.transpose(self.Mlink, axes=(1, 0, 2))
         M = M[Nodeinds]
 
-        self.Flink[Nodeinds] = (K * (D - D0))[..., None] * E + np.cross(M, E) / D[:, None]  # Eqs. 10, 13, 14, 15
+        # Eqs. 10, 13, 14, 15
+        self.Flink_tens[Nodeinds] = K * (D - D0)
+        self.Flink[Nodeinds] = self.Flink_tens[Nodeinds][..., None] * E + np.cross(M, E) / D[:, None]
 
     def updateLinkForces3D(self, PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds):
         """
@@ -378,10 +380,10 @@ class NodeConfiguration:
         """
         E = self.e[Nodeinds]
         D = self.d[Nodeinds]
-        NodesPhi = PHI[Nodeinds[0]]
+        # NodesPhi = PHI[Nodeinds[0]]
         # NodesPhiT = PHI[Nodeinds[1]]
 
-        rot = getRotMatArray(NodesPhi)
+        rot = getRotMatArray(PHI[Nodeinds[0]])
 
         # rotated version of Norm and NormT to fit current setup
         NormNow = np.einsum("ijk, ik -> ij", rot, Norm)

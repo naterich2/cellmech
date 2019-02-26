@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 npr.seed(seed=0)
 
 Lmax = 5
-N = 4
+N = 5
 Nsubs = 0
 
 bend = 10.0
@@ -34,8 +34,6 @@ for i in range(len(Xnodes)):
 for i in range(len(Xsubs)):
     c.mysubs.nodesX[i] = Xsubs[i]
 
-c.mynodes.updateDists(c.mynodes.nodesX)
-c.mysubs.updateDists(c.mynodes.nodesX)
 c.mynodes.addlink(0, 1, d0=1.)
 c.mynodes.addlink(0, 2, d0=1.)
 c.mynodes.addlink(1, 2, d0=1.)
@@ -60,7 +58,7 @@ animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subs
 mlab.show()
 """
 
-Xnodes = np.array([[0, 0, 1.], [1, 0, 1.], [0, 1., 1.], [0, 0, -1.]])
+Xnodes = np.array([[0, 0, 1.], [1, 0, 1.], [0, 1., 1.], [0, 0, -1.], [0, 0, 2]])
 for i in range(len(Xnodes)):
     c.mynodes.nodesX[i] = Xnodes[i]
 
@@ -70,14 +68,14 @@ c.mynodes.addlink(1, 2, d0=1.)
 c.mynodes.addlink(0, 3, d0=1.)
 c.mynodes.addlink(1, 3, d0=1.)
 c.mynodes.addlink(2, 3, d0=1.)
+c.mynodes.addlink(0, 4, d0=1.)
+c.mynodes.addlink(1, 4, d0=1.)
+c.mynodes.addlink(2, 4, d0=1.)
 
-
-
-cProfile.run('c.oneequil2()', sort='cumtime')
-
-
+c.update_d0(c.dt)
 configs, links, nodeforces, linkforces, ts = c.oneequil()
 
-c.savedata("01_minimal", savelinks_f=False, savenodes_f=False)
+# c.savedata()
+
 animateconfigs(configs, links, nodeforces, linkforces, ts)
 mlab.show()

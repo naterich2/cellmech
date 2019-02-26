@@ -12,14 +12,14 @@ npr.seed(seed=0)
 if __name__ == '__main__':
 
     Lmax = 5
-    Lsubs = 7
+    Lsubs = 5
     N = None
     Nsubs = None
 
     bend = 10.0
     twist = 1.0
     dt = 0.01
-    nmax = 300
+    nmax = 1000  # 300
     qmin = 0.001
     dims = 3
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     p_del = 0.1  # base rate to delete links
     p_del_subs = 1.
     chkx = False  # check if links overlap?
-
+    """
     # substrate
 
     config = initialconfig.square_wsubs(L=Lmax, Lsubs=Lsubs, N=N, Nsubs=Nsubs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
@@ -51,6 +51,7 @@ if __name__ == '__main__':
 
     cProfile.run('config.timeevo(20.)', sort='cumtime')
     """
+    """
     configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
         config.timeevo(50., record=True)
 
@@ -59,7 +60,6 @@ if __name__ == '__main__':
     mlab.show()
     """
 
-    """
     # bilayer
 
     config = initialconfig.bilayer(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
@@ -71,14 +71,10 @@ if __name__ == '__main__':
 
     # cProfile.run('config.oneequil()', sort='cumtime')
 
-
-
-    configs, links, nodeforces, linkforces, ts = config.timeevo(40., record=True)
-    # config.savedata()
+    configs, links, nodeforces, linkforces, ts = config.timeevo(2000., record=True)
+    config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
-    """
-
     """
     # double rod
     
@@ -90,7 +86,7 @@ if __name__ == '__main__':
         R.append([i + 0.5, r + 0.5, 0])
     R = np.array(R)
 
-    config = initialconfig.fromdefault(R, L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin,
+    config = initialconfig.fromdefault(R, dt=dt, nmax=nmax, qmin=qmin,
                                     d0_0=d0_0, p_add=p_add, p_del=p_del, chkx=chkx, d0max=d0max, dims=dims)
     
     for i, j in VoronoiNeighbors(config.mynodes.nodesX):
@@ -99,8 +95,8 @@ if __name__ == '__main__':
 
     # cProfile.run("config.timeevo(40.)", sort="cumtime")
 
-    configs, links, nodeforces, linkforces, ts = config.timeevo(40., record=True)
-    # config.savedata()
+    configs, links, nodeforces, linkforces, ts = config.timeevo(5000., record=True)
+    config.savedata()
     animateconfigs(configs, links, nodeforces, linkforces, ts)
     mlab.show()
     """

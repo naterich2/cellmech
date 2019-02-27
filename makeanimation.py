@@ -6,7 +6,7 @@ links = np.load("res/links.npy")
 nodeforces = np.load("res/nodesf.npy")
 linkforces = np.load("res/linksf.npy")
 ts = np.load("res/ts.npy")
-skip=10
+skip=1
 animateconfigs(configs[::skip], links[::skip], nodeforces[::skip], linkforces[::skip], ts[::skip]) # , subs, subslinks, subsnodeforces, subslinkforces)
 """
 configs = np.load("res/nodesr.npy")

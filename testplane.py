@@ -28,8 +28,8 @@ if __name__ == '__main__':
     d0_0 = 1.  # equilibrium distance of links
     p_add = 1.  # rate to add links
     p_add_subs = 1.
-    p_del = 0.1  # base rate to delete links
-    p_del_subs = 1.
+    p_del = 0.2  # base rate to delete links
+    p_del_subs = 0.2
     chkx = False  # check if links overlap?
     """
     # substrate
@@ -62,19 +62,17 @@ if __name__ == '__main__':
 
     # bilayer
 
-    config = initialconfig.bilayer(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
+    config = initialconfig.bilayer(L=Lmax, N=N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, force_contr=False,
                                       p_add=p_add, p_del=p_del, chkx=chkx, d0min=d0min, d0max=d0max, dims=dims)
 
     for i, j in VoronoiNeighbors(config.mynodes.nodesX):
         if np.linalg.norm(config.mynodes.nodesX[i] - config.mynodes.nodesX[j]) <= d0max:
             config.mynodes.addlink(i, j)
 
-    # cProfile.run('config.oneequil()', sort='cumtime')
-
-    configs, links, nodeforces, linkforces, ts = config.timeevo(2000., record=True)
+    configs, links, nodeforces, linkforces, ts = config.timeevo(10000., record=True)
     config.savedata()
-    animateconfigs(configs, links, nodeforces, linkforces, ts)
-    mlab.show()
+    # animateconfigs(configs, links, nodeforces, linkforces, ts)
+    # mlab.show()
     """
     # double rod
     

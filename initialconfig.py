@@ -118,12 +118,12 @@ def onelonesome(L, dense, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0max, dims)
     return c
 
 
-def bilayer(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0min, d0max, dims):
+def bilayer(L, N, dt, nmax, qmin, d0_0, p_add, p_del, chkx, d0min, d0max, dims, force_contr):
     if N is None:
         N = int(2 * (L ** 2))
 
     c = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del, p_add_subs=p_add, 
-                 p_del_subs=p_del, chkx=chkx, d0max=d0max, dims=dims, issubs=False)
+                 p_del_subs=p_del, chkx=chkx, d0max=d0max, dims=dims, issubs=False, force_contr=force_contr)
 
     for ni in range(N):
         while True:

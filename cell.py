@@ -474,10 +474,10 @@ class NodeConfiguration:
 
         if force:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
-            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr[nodeinds]) * dt * \
+            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr) * dt * \
                     0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
 
-        myd0 += 0.1 * (self.d0_0[nodeinds] - myd0) * dt + stoch * (2 * sqrt(dt) * myrandom - sqrt(dt))
+        myd0 += 0.1 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * myrandom - sqrt(dt))
 
         self.d0[nodeinds] = myd0
 
@@ -747,17 +747,17 @@ class SubsConfiguration:
         included.
         :return:
         """
-        nodeinds = self.getLinkTuple
+        nodeinds = self.getLinkTuple()
         myd0 = self.d0[nodeinds]
 
         subsrandom = npr.random(len(nodeinds[0]))
 
         if force:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
-            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr[nodeinds]) * dt *\
+            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr) * dt *\
                     0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
 
-        myd0 += 0.1 * (self.d0_0[nodeinds] - myd0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
+        myd0 += 0.1 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
 
         self.d0[nodeinds] = myd0
 
@@ -1363,7 +1363,7 @@ class CellMech:
             if savelinks_f:
                 np.save(savedir + "/subslinksf", self.mysubs.flinksnap)
 
-    def timeevo(self, tmax, isinit=True, isfinis=True, record=False, progress=True):
+    def timeevo(self, tmax, isinit=True, isfinis=True, record=False, progress=True, skip=1):
         """
         Perform simulation run with alternating steps of mechanical equilibration and plasticity
         :param tmax: Maximum time for simulation run
@@ -1371,6 +1371,7 @@ class CellMech:
         :param isfinis: boolean, whether this is the last segment of a simulation run
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
+        :param skip: int. snapshot config after every skip-th link modification if record is true
         :return: if self.issubs is False: a) numpy array containing x-positions of tissue nodes at the end of each
         time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes for
         each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of times
@@ -1379,30 +1380,44 @@ class CellMech:
         substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
         forces on substrate-tissue links at time steps
         """
-        t = 0.
-        myrandom = npr.random((self.mynodes.randomlength,))
-        self.mynodes.randomsummand[self.mynodes.lowers] = myrandom
-        self.mynodes.randomsummand.T[self.mynodes.lowers] = myrandom
-        self.mynodes.d0 += 0.04 * self.mynodes.randomsummand
-        if record and isinit:
-            self.makesnap(0)
+        if isinit:
+            myrandom = npr.random((self.mynodes.randomlength,))
+            self.mynodes.randomsummand[self.mynodes.lowers] = myrandom
+            self.mynodes.randomsummand.T[self.mynodes.lowers] = myrandom
+            self.mynodes.d0 += 0.04 * self.mynodes.randomsummand
+            t = 0
+            if record:
+                self.makesnap(t)
+        else:
+            if record:
+                t = self.snaptimes[-1]
+                tmax += t
+            else:
+                t = 0
+
+        loopcount = 1
         while t < tmax:
             dt = self.mechEquilibrium()
             t += dt
             dt = self.modlink()
             t += dt
             if record:
-                self.makesnap(t)
+                if loopcount == skip:
+                    self.makesnap(t)
+                    loopcount = 1
+                else:
+                    loopcount += 1
             if progress:
                 update_progress(t / tmax)
+
         if record and isfinis:
             self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
             self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
             self.mynodes.snaptimes = np.array(self.snaptimes)
-        if self.issubs is False:
+        if isfinis and self.issubs is False:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes
-        else:
+        elif isfinis:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes, \
                    self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap

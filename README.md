@@ -17,6 +17,9 @@ View files begining with "test_" for simple examples on how to use the code.
 cell.py:
     the algorithm for running the model
     
+myivp:
+    contains a modified version of scipy.integrate.solve_ivp
+    
 animate.py:
     functions for 3D-animation of simulation results
     

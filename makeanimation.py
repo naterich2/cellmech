@@ -1,35 +1,34 @@
-import numpy as np
 from animate import *
 
-configs = np.load("res/nodesr.npy")
-links = np.load("res/links.npy")
-nodeforces = np.load("res/nodesf.npy")
-linkforces = np.load("res/linksf.npy")
-ts = np.load("res/ts.npy")
-skip=1
-animateconfigs(configs[::skip], links[::skip], nodeforces[::skip], linkforces[::skip], ts[::skip]) # , subs, subslinks, subsnodeforces, subslinkforces)
-"""
-configs = np.load("res/nodesr.npy")
-links = np.load("res/links.npy")
-nodeforces = np.load("res/nodesf.npy")
-linkforces = np.load("res/linksf.npy")
-ts = np.load("res/ts.npy")
-subs = np.load("res/subsnodesr.npy")
-subslinks = np.load("res/subslinks.npy")
-subsnodeforces = np.load("res/subsnodesf.npy")
-subslinkforces = np.load("res/subslinksf.npy")
 
-animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
-"""
-"""
-configs = np.load("res/nodesr1.npy")
-links = np.load("res/links1.npy")
-nodeforces = np.load("res/nodesf1.npy")
-linkforces = np.load("res/linksf1.npy")
-ts = np.load("res/ts1.npy")
+if __name__ == '__main__':
 
-upto = -1
+    # produce animation from previously saved simulation results
 
-animateconfigs(configs[:upto], links[:upto], nodeforces[:upto], linkforces[:upto], ts[:upto])
-"""
-mlab.show()
+    ####################
+
+    skip = 1            # only use every skip-th simulation step for animation
+    dir = "res"         # location of simulation results
+    showsubs = False    # whether or not to visualize substrate nodes
+
+    ####################
+
+    configs = np.load(dir + "/nodesr.npy")[::skip]
+    links = np.load(dir + "/links.npy")[::skip]
+    nodeforces = np.load(dir + "/nodesf.npy")[::skip]
+    linkforces = np.load(dir + "/linksf.npy")[::skip]
+    ts = np.load(dir + "/ts.npy")[::skip]
+
+    try:     # try to include substrate details if they exists
+        subs = np.load(dir + "/subsnodesr.npy")[::skip]
+        subslinks = np.load(dir + "/subslinks.npy")[::skip]
+        subsnodeforces = np.load(dir + "/subsnodesf.npy")[::skip]
+        subslinkforces = np.load(dir + "/subslinksf.npy")[::skip]
+
+        animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces,
+                       showsubs=False)
+
+    except IOError: # if no substrate results exist
+        animateconfigs(configs, links, nodeforces, linkforces, ts)
+
+    mlab.show()

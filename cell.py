@@ -13,8 +13,6 @@ import itertools
 from scipy.spatial import Delaunay
 from scipy.stats import lognorm
 
-import matplotlib.pyplot as plt
-
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 null = np.array([0.0, 0.0, 0.0])
@@ -467,14 +465,21 @@ class NodeConfiguration:
         included.
         :return:
         """
-        myrandom = npr.random((self.randomlength,))
-        self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = myrandom, myrandom
+        nodeinds = self.getLinkTuple()
+        myd0 = self.d0[nodeinds]
+
+        temprandom = npr.random((self.randomlength,))
+        self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = temprandom, temprandom
+        myrandom = self.randomsummand[nodeinds]
 
         if force:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
-            self.d0 += 0.05 * (self.Flink_tens - self.F_contr) * dt * 0.69 * lognorm.pdf(self.d, .7, loc=.7, scale=.5)
+            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr[nodeinds]) * dt * \
+                    0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
 
-        self.d0 += 0.1 * (self.d0_0 - self.d0) * dt + stoch * (2 * sqrt(dt) * self.randomsummand - sqrt(dt))
+        myd0 += 0.1 * (self.d0_0[nodeinds] - myd0) * dt + stoch * (2 * sqrt(dt) * myrandom - sqrt(dt))
+
+        self.d0[nodeinds] = myd0
 
 
 class SubsConfiguration:
@@ -742,18 +747,24 @@ class SubsConfiguration:
         included.
         :return:
         """
-        subsrandom = npr.random((self.N, self.Nsubs))
+        nodeinds = self.getLinkTuple
+        myd0 = self.d0[nodeinds]
+
+        subsrandom = npr.random(len(nodeinds[0]))
 
         if force:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
-            self.d0 += 0.05 * (self.Flink_tens - self.F_contr) * dt * 0.69 * lognorm.pdf(self.d, .7, loc=.7, scale=.5)
+            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr[nodeinds]) * dt *\
+                    0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
 
-        self.d0 += 0.1 * (self.d0_0 - self.d0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
+        myd0 += 0.1 * (self.d0_0[nodeinds] - myd0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
+
+        self.d0[nodeinds] = myd0
 
 
 class CellMech:
     def __init__(self, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., force_limit=15., p_add=1.,
-                 p_del=0.2, p_add_subs=1., p_del_subs=0.2, chkx=False, d0max=2., dims=3, F_contr=1.,
+                 p_del=0.2, p_add_subs=None, p_del_subs=None, chkx=False, d0max=2., dims=3, F_contr=1.,
                  isF0=False, isanchor=False, issubs=False, force_contr=True):
         """
         Implementation of model for cell-resolved, multiparticle model of plastic tissue deformations and morphogenesis
@@ -762,7 +773,7 @@ class CellMech:
 
         Code contains extensions by Moritz Zeidler, Dept. for Innovative Methods of Computing (IMC),
         Centre for Information Services and High Performance Computing (ZIH) at Technische Universitaet Dresden.
-        Contact via moritz.zeidler@tu-dresden.de or andreas.deutsch@tu-dresden.de
+        Contact via moritz.zeidler at tu-dresden.de or andreas.deutsch at tu-dresden.de
 
         Initialize instance of class CellMech, which serves as the overlying class for simulations. Also initializes
         instances of class NodeConfiguration (always) and  SubsConfiguration (when issubs==True or
@@ -787,20 +798,23 @@ class CellMech:
         :param isanchor: bool, whether or not tissue cells are anchored to a x0-position
         :param issubs: True (with substrate), False (without substrate) or "lonesome" (with substrate but only one
             tissue cell)
-        :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent component
-        included.
+        :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent
+            componentincluded.
         """
         self.dims = dims
         self.issubs = issubs
+
         # variables to store cell number and cell positions and angles
         self.N = num_cells
         self.N2 = 2 * self.N
         self.N_inv = 1. / self.N
+
         # parameters for mechanical equilibration
         self.dt = dt
         self.nmax = nmax
         self.tmax = nmax * dt
         self.qmin = np.sqrt(qmin)
+
         # parameters to add/remove links
         self.d0_0 = d0_0
         self.force_limit = force_limit
@@ -809,6 +823,7 @@ class CellMech:
         elif self.dims == 3:
             self.chkx = False
         self.d0max = d0max
+
         # stuff for documentation
         self.snaptimes = []  # stores the simulation timesteps
         self.force_contr = force_contr
@@ -820,19 +835,29 @@ class CellMech:
         if self.issubs is True:
             # initialize instance of SubsConfiguration containing data on substrate cells, set functions to account for
             # substrate when calculating forces and saving steps
+            if p_add_subs is None:
+                p_add_subs = p_add
+            if p_del_subs is None:
+                p_del_subs = p_del
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0, F_contr=F_contr,
                                             p_add=p_add_subs, p_del=p_del_subs)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
+
         elif self.issubs is False:
             # set functions to ignore substrate when calculating forces and saving steps
             self.mechEquilibrium = lambda: self.mechEquilibrium_nosubs()
             self.makesnap = lambda t: self.makesnap_nosubs(t)
             self.addLinkList = lambda: self.addLinkList_nosubs()
+
         elif self.issubs is "lonesome":
             # initialize instance of SubsConfiguration containing data on substrate cells, set functions to account for
             # substrate when calculating forces and saving steps but simplify tissue behavior for one tissue cell only
+            if p_add_subs is None:
+                p_add_subs = p_add
+            if p_del_subs is None:
+                p_del_subs = p_del
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0, F_contr=F_contr,
                                             p_add=p_add_subs, p_del=p_del_subs)
             self.mechEquilibrium = lambda: self.mechEquilibrium_lonesome()
@@ -1338,13 +1363,14 @@ class CellMech:
             if savelinks_f:
                 np.save(savedir + "/subslinksf", self.mysubs.flinksnap)
 
-    def timeevo(self, tmax, isinit=True, isfinis=True, record=False):
+    def timeevo(self, tmax, isinit=True, isfinis=True, record=False, progress=True):
         """
         Perform simulation run with alternating steps of mechanical equilibration and plasticity
         :param tmax: Maximum time for simulation run
         :param isinit: boolean, whether this is the first segment of a simulation run
         :param isfinis: boolean, whether this is the last segment of a simulation run
         :param record: boolean, whether to save simulation data for after code has finished
+        :param progress: show progress bar
         :return: if self.issubs is False: a) numpy array containing x-positions of tissue nodes at the end of each
         time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes for
         each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of times
@@ -1358,12 +1384,8 @@ class CellMech:
         self.mynodes.randomsummand[self.mynodes.lowers] = myrandom
         self.mynodes.randomsummand.T[self.mynodes.lowers] = myrandom
         self.mynodes.d0 += 0.04 * self.mynodes.randomsummand
-        dmean = []
-        d0mean = []
         if record and isinit:
             self.makesnap(0)
-            dmean.append(np.mean(self.mynodes.d[self.mynodes.islink]))
-            d0mean.append(np.mean(self.mynodes.d0[self.mynodes.islink]))
         while t < tmax:
             dt = self.mechEquilibrium()
             t += dt
@@ -1371,17 +1393,12 @@ class CellMech:
             t += dt
             if record:
                 self.makesnap(t)
-                dmean.append(np.mean(self.mynodes.d[self.mynodes.islink]))
-                d0mean.append(np.mean(self.mynodes.d0[self.mynodes.islink]))
-            update_progress(t / tmax)
+            if progress:
+                update_progress(t / tmax)
         if record and isfinis:
             self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
             self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
             self.mynodes.snaptimes = np.array(self.snaptimes)
-        plt.plot(self.snaptimes, dmean, label="dmean")
-        plt.plot(self.snaptimes, d0mean, label="d0mean")
-        plt.legend()
-        plt.show()
         if self.issubs is False:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes

@@ -465,19 +465,21 @@ class NodeConfiguration:
         included.
         :return:
         """
-        nodeinds = self.getLinkTuple()
+        nodeinds = np.where(self.islink == True)
         myd0 = self.d0[nodeinds]
 
         temprandom = npr.random((self.randomlength,))
         self.randomsummand[self.lowers], self.randomsummand.T[self.lowers] = temprandom, temprandom
-        myrandom = self.randomsummand[nodeinds]
 
         if force:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
             myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr) * dt * \
                     0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
+            c2 = 0.1
+        else:
+            c2 = 0.2
 
-        myd0 += 0.1 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * myrandom - sqrt(dt))
+        myd0 += c2 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * self.randomsummand[nodeinds] - sqrt(dt))
 
         self.d0[nodeinds] = myd0
 
@@ -747,7 +749,7 @@ class SubsConfiguration:
         included.
         :return:
         """
-        nodeinds = self.getLinkTuple()
+        nodeinds = np.where(self.islink == True)
         myd0 = self.d0[nodeinds]
 
         subsrandom = npr.random(len(nodeinds[0]))
@@ -756,8 +758,11 @@ class SubsConfiguration:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
             myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr) * dt *\
                     0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
+            c2 = 0.1
+        else:
+            c2 = 0.2
 
-        myd0 += 0.1 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
+        myd0 += c2 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
 
         self.d0[nodeinds] = myd0
 

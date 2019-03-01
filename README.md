@@ -25,6 +25,9 @@ animate.py:
     
 makeanimation.py:
     code for animation of previously generated simulation results
+    
+test_minimal.py:
+    run one mechanical equilibration for cells with stretched links
 
 test_plane.py:
     run simulation of cells in 2d initialized in square

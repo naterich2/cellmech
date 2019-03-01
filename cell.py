@@ -1368,7 +1368,7 @@ class CellMech:
             if savelinks_f:
                 np.save(savedir + "/subslinksf", self.mysubs.flinksnap)
 
-    def timeevo(self, tmax, isinit=True, isfinis=True, record=False, progress=True, skip=1):
+    def timeevo(self, tmax, isinit=True, isfinis=True, record=False, progress=True, dtsave=0):
         """
         Perform simulation run with alternating steps of mechanical equilibration and plasticity
         :param tmax: Maximum time for simulation run
@@ -1376,7 +1376,8 @@ class CellMech:
         :param isfinis: boolean, whether this is the last segment of a simulation run
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
-        :param skip: int. snapshot config after every skip-th link modification if record is true
+        :param dtsave: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
+            each time t has crossed a new n*dtsave line
         :return: if self.issubs is False: a) numpy array containing x-positions of tissue nodes at the end of each
         time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes for
         each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of times
@@ -1385,6 +1386,8 @@ class CellMech:
         substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
         forces on substrate-tissue links at time steps
         """
+        # pre-production
+
         if isinit:
             myrandom = npr.random((self.mynodes.randomlength,))
             self.mynodes.randomsummand[self.mynodes.lowers] = myrandom
@@ -1399,26 +1402,29 @@ class CellMech:
                 tmax += t
             else:
                 t = 0
+        tlast = t
 
-        loopcount = 1
+        # main loop
+
         while t < tmax:
             dt = self.mechEquilibrium()
             t += dt
             dt = self.modlink()
             t += dt
-            if record:
-                if loopcount == skip:
-                    self.makesnap(t)
-                    loopcount = 1
-                else:
-                    loopcount += 1
+            if record and (t - tlast > dtsave or t > tmax):
+                self.makesnap(t)
+                if dtsave != 0:
+                    tlast = t - t % dtsave
             if progress:
                 update_progress(t / tmax)
+
+        # post-production
 
         if record and isfinis:
             self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
             self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
             self.mynodes.snaptimes = np.array(self.snaptimes)
+
         if isfinis and self.issubs is False:
             return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
                    self.snaptimes

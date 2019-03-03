@@ -51,9 +51,9 @@ if __name__ == '__main__':
             config.mynodes.addlink(i, j)
 
     # run and save simulation
-    configs, links, nodeforces, linkforces, ts = config.timeevo(runtime, record=True)
+    simdata = config.timeevo(runtime, record=True)
     config.savedata(savedir)
 
     # animate results
-    animateconfigs(configs, links, nodeforces, linkforces, ts)
+    animateconfigs(simdata)
     mlab.show()

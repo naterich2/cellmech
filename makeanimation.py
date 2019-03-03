@@ -25,10 +25,10 @@ if __name__ == '__main__':
         subsnodeforces = np.load(dir + "/subsnodesf.npy")[::skip]
         subslinkforces = np.load(dir + "/subslinksf.npy")[::skip]
 
-        animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces,
+        animateconfigs((configs, links, nodeforces, linkforces, ts), (subs, subslinks, subsnodeforces, subslinkforces),
                        showsubs=False)
 
     except IOError: # if no substrate results exist
-        animateconfigs(configs, links, nodeforces, linkforces, ts)
+        animateconfigs((configs, links, nodeforces, linkforces, ts))
 
     mlab.show()

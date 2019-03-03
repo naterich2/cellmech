@@ -96,10 +96,9 @@ if __name__ == '__main__':
                 config.mysubs.addlink(i, j - config.N, config.mynodes.nodesX[i], config.mynodes.nodesPhi[i])
 
     # run and save simulation
-    configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
-        config.timeevo(runtime, record=True)
+    simdata, subssimdata = config.timeevo(runtime, record=True)
     config.savedata(savedir)
 
     # animate results
-    animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces, showsubs=False)
+    animateconfigs(simdata, subssimdata, showsubs=False)
     mlab.show()

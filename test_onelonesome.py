@@ -68,18 +68,16 @@ if __name__ == '__main__':
     # add links between cells adjacent in Voronoi tesselation and closer than d0min
     for j in range(config.mysubs.Nsubs):
         if np.linalg.norm(config.mynodes.nodesX[0] - config.mysubs.nodesX[j]) <= d0max:
-            config.mysubs.addlink(0, j, config.mynodes.nodesPhi[0])
+            config.mysubs.addlink(0, j, config.mynodes.nodesX[0], config.mynodes.nodesPhi[0])
             break
 
     # run and save simulation
-    configs, trashlinks, nodeforces, trashlinkforces, ts, subs, subslinks, subsnodeforces, subslinkforces = \
-        config.timeevo(runtime, record=True)
+    simdata, subssimdata = config.timeevo(runtime, record=True)
 
     links = None
     linkforces = None
     config.savedata(savedir)
 
     # animate results
-    animateconfigs(configs, links, nodeforces, linkforces, ts, subs, subslinks, subsnodeforces, subslinkforces,
-                   showsubs=False)
+    animateconfigs(simdata, subssimdata, showsubs=False)
     mlab.show()

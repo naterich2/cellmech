@@ -27,7 +27,7 @@ if __name__ == '__main__':
     runtime = 100.          # Length of simulation run
     dims = 2                # Number of dimensions for the given problem
 
-    savedir = "resy"
+    savedir = "res"
 
     dt = 0.01               # fundamental time unit, relevant only in combination with nmax
     nmax = 1000             # dt * nmax is the maximum time for mechanical equilibration
@@ -69,15 +69,15 @@ if __name__ == '__main__':
             config.mynodes.addlink(i, j)
 
     # run and save simulation
-    configs, links, nodeforces, linkforces, ts = config.timeevo(runtime/2., record=True)
+    simdata = config.timeevo(runtime/2., record=True)
     config.savedata(savedir)
 
     config2 = relaunch_CellMech(savedir, N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del,
                       chkx=chkx, d0max=d0max, dims=dims, issubs=False)
 
-    configs2, links2, nodeforces2, linkforces2, ts2 = config2.timeevo(runtime/2., record=True, isinit=False)
+    simdata2 = config2.timeevo(runtime/2., record=True, isinit=False)
     config2.savedata(savedir)
 
     # animate results
-    animateconfigs(configs2, links2, nodeforces2, linkforces2, ts2)
+    animateconfigs(simdata2)
     mlab.show()

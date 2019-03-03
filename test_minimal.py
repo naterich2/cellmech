@@ -47,9 +47,9 @@ if __name__ == '__main__':
     config.mynodes.addlink(2, 4, d0=1.)
 
     # run and save simulation
-    configs, links, nodeforces, linkforces, ts = config.oneequil()
+    simdata = config.oneequil()
     config.savedata(savedir)
 
     # animate results
-    animateconfigs(configs, links, nodeforces, linkforces, ts)
+    animateconfigs(simdata)
     mlab.show()

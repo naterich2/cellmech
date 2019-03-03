@@ -53,6 +53,8 @@ def pack(A, B):
     :param B: list containing numpy arrays
     :return: list of concatenated numpy arrays
     """
+    if len(A) == 0:
+        return B
     try:
         C = []
         for ind in range(len(A)):
@@ -63,27 +65,26 @@ def pack(A, B):
 
 
 @mlab.animate(delay=70)
-def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
-                   Subs=None, SubsLinks=None, subsnodeForces=None, subslinkForces=None,
+def animateconfigs(Simdata, SubsSimdata=None,
                    figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), figsize=(1000, 1000),
                    cmap='viridis', cbar=False, showsubs=False):
     """
     Create animation of simulation results previously created with cell.py
-    :param Configs: numpy array of shape (timesteps, ncells, 3) containing positions of tissue cells
-    :param Links: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 2) containing indices of tissue
-        cells connected by links
-    :param nodeForces: numpy array of shape (timesteps, ncells, 3) containing forces on tissue cells
-    :param linkForces: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 3) containing forces on
-        links connecting tissue cells
-    :param ts: numpy array of shape (timesteps,) containing times of the system snapshots
-    :param Subs: numpy array of shape (timesteps, ncells, 3) containing positions of substrate cells; or None if
-        simulations don't include substrate
-    :param SubsLinks: list of length (timesteps,) containing numpy arrays of shape (nlinks, 2) containing indices of
-        tissue and substrate cells connected by links; or None if simulations don't include substrate
-    :param subsnodeForces: numpy array of shape (timesteps, ncells, 3) containing forces on substrate cells; or None if
-        simulations don't include substrate
-    :param subslinkForces: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 3) containing forces
-        on links connecting tissue with substrate cells; or None if simulations don't include substrate
+    :param Simdata: Tuple containing items:
+        Configs: numpy array of shape (timesteps, ncells, 3) containing positions of tissue cells
+        Links: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 2) containing indices of tissue
+            cells connected by links
+        nodeForces: numpy array of shape (timesteps, ncells, 3) containing forces on tissue cells
+        linkForces: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 3) containing forces on
+            links connecting tissue cells
+        ts: numpy array of shape (timesteps,) containing times of the system snapshots
+    :param SubsSimdata: None if simulations didn't include substrate, or Tuple containing items:
+        Subs: numpy array of shape (timesteps, ncells, 3) containing positions of substrate cells
+        SubsLinks: list of length (timesteps,) containing numpy arrays of shape (nlinks, 2) containing indices of
+            tissue and substrate cells connected by links
+        subsnodeForces: numpy array of shape (timesteps, ncells, 3) containing forces on substrate cells
+        subslinkForces: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 3) containing forces
+            on links connecting tissue with substrate cells
     :param figureindex: n of figure
     :param bgcolor: tuple of shape (3,) indicating foreground color
     :param fgcolor: tuple of shape (3,) indicating background color
@@ -93,6 +94,16 @@ def animateconfigs(Configs, Links, nodeForces, linkForces, ts,
     :param showsubs: boolean, whether or not to explicitely visualize substrate cells
     :return:
     """
+    # unpack Simdata and SubsSimdata
+    Configs, Links, nodeForces, linkForces, ts = Simdata
+
+    if SubsSimdata is None:
+        Subs = None
+        SubsLinks = None
+        subsnodeForces = None
+        subslinkForces = None
+    else:
+        Subs, SubsLinks, subsnodeForces, subslinkForces = SubsSimdata
 
     fig = mlab.figure(figureindex, bgcolor=bgcolor, fgcolor=fgcolor, size=figsize)
 

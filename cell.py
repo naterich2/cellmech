@@ -1512,11 +1512,11 @@ class CellMech:
         :param progress: show progress bar
         :param dtsave: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
             each time t has crossed a new n*dtsave line
-        :return: if self.issubs is False: a) numpy array containing x-positions of tissue nodes at the end of each
+        :return: if self.issubs is False: Tuple of a) numpy array containing x-positions of tissue nodes at the end of each
         time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes for
         each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of times
         at time steps
-        else: additionally f) numpy array containing fixed positions of substrate nodes, g) list of index tuples for
+        else: additional tuple of f) numpy array containing fixed positions of substrate nodes, g) list of index tuples for
         substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
         forces on substrate-tissue links at time steps
         """
@@ -1561,18 +1561,18 @@ class CellMech:
             self.mynodes.snaptimes = np.array(self.snaptimes)
 
         if isfinis and self.issubs is False:
-            return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-                   self.snaptimes
+            return (self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap,
+                   self.snaptimes)
         elif isfinis:
-            return self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap, \
-                   self.snaptimes, \
-                   self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap
+            return (self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap,
+                   self.snaptimes), \
+                   (self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap)
 
     def oneequil(self):
         """
         Perform simulation run with only one step of mechanical equilibration and no tissue plasticity for a setup
         without a substrate
-        :return: Node positions for all timesteps (numpy array), link configurations for each timestep (unchanged,
+        :return: Tuple of Node positions for all timesteps (numpy array), link configurations for each timestep (unchanged,
         numpy array with identical entries along first axis), None, None, timesteps (numpy array)
         """
         linkList = self.mynodes.getLinkList()
@@ -1599,13 +1599,13 @@ class CellMech:
         self.mynodes.nodesnap = np.transpose(x[:self.N, :, :], axes=(2, 0, 1))
         self.mynodes.nodesX = self.mynodes.nodesnap[-1]
         self.mynodes.linksnap = np.tile(linkList, (len(self.snaptimes), 1, 1))
-        return self.mynodes.nodesnap, self.mynodes.linksnap, None, None, self.snaptimes
+        return (self.mynodes.nodesnap, self.mynodes.linksnap, None, None, self.snaptimes)
 
     def oneequil_withsubs(self):
         """
         Perform simulation run with only one step of mechanical equilibration and no tissue plasticity for a setup
         with a substrate
-        :return: Node positions for all timesteps (numpy array), link configurations for each timestep (unchanged,
+        :return: Tuple Node positions for all timesteps (numpy array), link configurations for each timestep (unchanged,
         numpy array with identical entries along first axis), None, None, timesteps (numpy array)
         """
         linkList = self.mynodes.getLinkList()
@@ -1632,4 +1632,4 @@ class CellMech:
         x = res.y.reshape((-1, 3, len(res.t)))
         self.snaptimes = res.t
         self.mynodes.nodesnap = np.transpose(x[:self.N, :, :], axes=(2, 0, 1))
-        return self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes
+        return (self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes)

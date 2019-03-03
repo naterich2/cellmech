@@ -1,17 +1,19 @@
 from __future__ import division
 
 import sys
-import warnings
 import os
-from math import exp, log, sqrt
+import warnings
 
 import numpy as np
 import numpy.random as npr
 import scipy.linalg
-from myivp.myivp import solve_ivp
-import itertools
 from scipy.spatial import Delaunay
 from scipy.stats import lognorm
+import itertools
+
+from math import exp, log, sqrt
+
+from myivp.myivp import solve_ivp
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -133,6 +135,115 @@ def VoronoiNeighbors(positions, vodims=2):
     neighbors = set(n)
 
     return neighbors
+
+
+def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., force_limit=15., p_add=1.,
+                 p_del=0.2, p_add_subs=None, p_del_subs=None, chkx=False, d0max=2., dims=3, F_contr=1.,
+                 isF0=False, isanchor=False, issubs=False, force_contr=True):
+    """
+    Create an instance of CellMech and set it up so that a simulation can be continued from where it was previously
+    ended. Take special care if settings where changed in space or time (e.g. bend, twist or Hookean parameters),
+    manual changes might become necessary. Take care to run timeevo with isinit=False. Also not set up for anchors
+    and external forces yet.
+    :param savedir: string, name of directory where previous data is saved
+    :param num_cells: integer, the number of tissue cells
+    :param num_subs: integer, the number of substrate cells
+    :param dt: float, the time unit for scaling simulation time
+    :param nmax: integer, the maximum time (in simulation time) for until cutoff when calculating
+        mechanical equilibrium
+    :param qmin: float, the square of the maximum force per cell until mechanical equilibration is cut off
+    :param d0_0: float, the global equilibrium link length (d_0 in czirok2014cell)
+    :param force_limit: float, F* from czirok2014cell
+    :param p_add: float, base probability for adding tissue-tissue links
+    :param p_del: float, base probability for removing tissue-tissue links
+    :param p_add_subs: float, base probability for adding tissue-substrate links
+    :param p_del_subs: float, base probability for removing tissue-substrate links
+    :param chkx: bool, whether or not to check for link crossings (only functional for dims==2
+    :param d0max: float, maximum cell-cell distance to allow a link to be added
+    :param dims: 2 or 3, the number of dimensions of the simulations
+    :param isF0: bool, whether or not external forces are a part of the problem
+    :param isanchor: bool, whether or not tissue cells are anchored to a x0-position
+    :param issubs: True (with substrate), False (without substrate) or "lonesome" (with substrate but only one
+        tissue cell)
+    :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent
+        componentincluded.
+    :return: Initiated instance of CellMech
+    """
+
+    c = CellMech(num_cells=num_cells, num_subs=num_subs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
+                 force_limit=force_limit, p_add=p_add, p_del=p_del, p_add_subs=p_add_subs, p_del_subs=p_del_subs,
+                 chkx=chkx, d0max=d0max, dims=dims, F_contr=F_contr, isF0=isF0, isanchor=isanchor, issubs=issubs,
+                 force_contr=force_contr)
+
+    # load data (everything not related to the substrate)
+    sts = np.load(savedir + "/ts.npy")
+    snodesr = np.load(savedir + "/nodesr.npy")
+    sphi = np.load(savedir + "/phi.npy")
+    snodesf = np.load(savedir + "/nodesf.npy")
+    slinks = np.load(savedir + "/links.npy")
+    slinksf = np.load(savedir + "/linksf.npy")
+    stang = np.load(savedir + "/tang.npy")
+    snorm = np.load(savedir + "/norm.npy")
+    sd0 = np.load(savedir + "/d0.npy")
+
+    # save snapshots in class instance
+    c.snaptimes = list(sts)
+
+    c.mynodes.nodesnap = list(snodesr)
+    c.mynodes.fnodesnap = list(snodesf)
+    c.mynodes.linksnap = list(slinks)
+    c.mynodes.flinksnap = list(slinksf)
+
+    # set up tissue
+    lastlinks = slinks[-1]
+
+    c.mynodes.nodesX = snodesr[-1]
+    c.mynodes.nodesPhi = sphi
+
+    for link in lastlinks:
+        c.mynodes.addlink(link[0], link[1])
+
+    nodeinds = np.where(c.mynodes.islink == True)
+
+    c.mynodes.t[nodeinds] = stang
+    c.mynodes.norm[nodeinds] = snorm
+    c.mynodes.d0[nodeinds] = sd0
+
+    if c.issubs is not False:
+        # do everything for substrate
+        ssubsnodesr = np.load(savedir + "/subsnodesr.npy")
+        ssubsphi = np.load(savedir + "/subsphi.npy")
+        ssubsnodesf = np.load(savedir + "/subsnodesf.npy")
+        ssubslinks = np.load(savedir + "/subslinks.npy")
+        ssubslinksf = np.load(savedir + "/subslinksf.npy")
+        stcell = np.load(savedir + "/substcell.npy")
+        stsubs = np.load(savedir + "/substsubs.npy")
+        snormcell = np.load(savedir + "/subsnormcell.npy")
+        snormsubs = np.load(savedir + "/subsnormsubs.npy")
+        ssubsd0 = np.load(savedir + "/subsd0.npy")
+
+        c.mysubs.nodesnap = list(ssubsnodesr)
+        c.mysubs.fnodesnap = list(ssubsnodesf)
+        c.mysubs.linksnap = list(ssubslinks)
+        c.mysubs.flinksnap = list(ssubslinksf)
+
+        lastlinks = ssubslinks[-1]
+
+        c.mysubs.nodesX = ssubsnodesr
+        c.mysubs.nodesPhi = ssubsphi
+
+        for link in lastlinks:
+            c.mysubs.addlink(link[0], link[1], c.mynodes.nodesX[link[0]], c.mynodes.nodesPhi[link[0]])
+
+        nodeinds = np.where(c.mysubs.islink == True)
+
+        c.mysubs.tcell[nodeinds] = stcell
+        c.mysubs.tsubs[nodeinds] = stsubs
+        c.mysubs.normcell[nodeinds] = snormcell
+        c.mysubs.normsubs[nodeinds] = snormsubs
+        c.mysubs.d0[nodeinds] = ssubsd0
+
+    return c
 
 
 class NodeConfiguration:
@@ -1333,8 +1444,8 @@ class CellMech:
         self.mysubs.flinksnap.append(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]])
         self.snaptimes.append(t)
 
-    def savedata(self, savedir="res",
-                 savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True, savet=True):
+    def savedata(self, savedir="res", savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True, savet=True,
+                 savephi=True, savetang=True, savenorm=True, saved0=True):
         """
         Save important configuration data to disk
         :param savedir: string, name of directory to save in (based on current working directory)
@@ -1343,8 +1454,12 @@ class CellMech:
         :param savenodes_f: boolean, whether to save forces on nodes
         :param savelinks_f: boolean, whether to save forces on links
         :param savet: boolean, whether to save timesteps
+        :param savephi: boolean, whether to save last phi configuration (only needed in case of later relaunch)
+        :param savetang: boolean, whether to save last t (only needed in case of later relaunch)
+        :param savenorm: boolean, whether to save last norm (only needed in case of later relaunch)
         :return:
         """
+        linklist = np.where(self.mynodes.islink == True)
         if not os.path.isdir("./" + savedir):
             os.mkdir("./" + savedir)
         if savenodes_r:
@@ -1357,8 +1472,17 @@ class CellMech:
             np.save(savedir + "/linksf", self.mynodes.flinksnap)
         if savet:
             np.save(savedir + "/ts", self.snaptimes)
+        if savephi:
+            np.save(savedir + "/phi", self.mynodes.nodesPhi)
+        if savetang:
+            np.save(savedir + "/tang", self.mynodes.t[linklist])
+        if savenorm:
+            np.save(savedir + "/norm", self.mynodes.norm[linklist])
+        if saved0:
+            np.save(savedir + "/d0", self.mynodes.d0[linklist])
 
         if self.issubs:
+            linklist = np.where(self.mysubs.islink == True)
             if savenodes_r:
                 np.save(savedir + "/subsnodesr", self.mysubs.nodesX)
             if savenodes_f:
@@ -1367,6 +1491,16 @@ class CellMech:
                 np.save(savedir + "/subslinks", self.mysubs.linksnap)
             if savelinks_f:
                 np.save(savedir + "/subslinksf", self.mysubs.flinksnap)
+            if savephi:
+                np.save(savedir + "/subsphi", self.mysubs.nodesPhi)
+            if savetang:
+                np.save(savedir + "/substcell", self.mysubs.tcell[linklist])
+                np.save(savedir + "/substsubs", self.mysubs.tsubs[linklist])
+            if savenorm:
+                np.save(savedir + "/subsnormcell", self.mysubs.normcell[linklist])
+                np.save(savedir + "/subsnormsubs", self.mysubs.normsubs[linklist])
+            if saved0:
+                np.save(savedir + "/subsd0", self.mysubs.d0[linklist])
 
     def timeevo(self, tmax, isinit=True, isfinis=True, record=False, progress=True, dtsave=0):
         """
@@ -1387,6 +1521,7 @@ class CellMech:
         forces on substrate-tissue links at time steps
         """
         # pre-production
+
 
         if isinit:
             myrandom = npr.random((self.mynodes.randomlength,))

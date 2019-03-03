@@ -43,5 +43,9 @@ test_onelonesome.py:
     
 test_substrate.py:
     run simulation of cells initialized in square above substrate
+    
+rest_relaunch.py:
+    run simulation of cells in 2d initialized in square with interruption and relaunch after half-time
+
 
 </pre>

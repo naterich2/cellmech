@@ -13,6 +13,8 @@ if __name__ == '__main__':
     N = 5                       # Number of cells. If None: int(2 * Lmax**2)
     dims = 3                    # Number of dimensions for the given problem
 
+    savedir = "res"         # Directory to save the simulation results
+
     dt = 0.01                   # fundamental time unit, relevant only in combination with nmax
     nmax = 1000                 # dt * nmax is the maximum time for mechanical equilibration
     qmin = 0.001                # Threshhold tension beneath which the system is in mechanical equilibrium
@@ -46,7 +48,7 @@ if __name__ == '__main__':
 
     # run and save simulation
     configs, links, nodeforces, linkforces, ts = config.oneequil()
-    config.savedata()
+    config.savedata(savedir)
 
     # animate results
     animateconfigs(configs, links, nodeforces, linkforces, ts)

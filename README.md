@@ -84,6 +84,8 @@ CellMech(self, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., fo
             tissue cell)
         :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent
             componentincluded.
+        :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
+            containing global values for the three constants 
         :return: instance of class CellMech
    
         

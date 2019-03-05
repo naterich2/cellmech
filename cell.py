@@ -247,7 +247,8 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
 
 
 class NodeConfiguration:
-    def __init__(self, num, num_subs, d0_0, p_add, p_del, F_contr, dims=3, isF0=False, isanchor=False):
+    def __init__(self, num, num_subs, d0_0, p_add, p_del, F_contr, dims=3, isF0=False, isanchor=False,
+                 plasticity=(15., 10., 1.)):
         """
         Class containing data for all tissue nodes and tissue-tissue links. Is automatically initialized by class
         CellMech
@@ -260,6 +261,8 @@ class NodeConfiguration:
         :param dims: 2 or 3, the number of dimensions of the simulations
         :param isF0: bool, whether or not external forces are a part of the problem
         :param isanchor: bool, whether or not tissue cells are anchored to a x0-position
+        :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
+            containing global values for the three constants
         """
         if dims == 2:
             self.updateLinkForces = lambda PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds: \
@@ -299,9 +302,16 @@ class NodeConfiguration:
         self.e = np.zeros((self.N, self.N, 3))           # direction connecting nodes (a.k.a. "actual direction")
         self.d = np.zeros((self.N, self.N))              # distance between nodes (a.k.a. "actual distance")
         self.d0_0 = d0_0                                 # global equilibrium link length
-        self.k = np.zeros((self.N, self.N))              # spring constant between nodes
-        self.bend = np.zeros((self.N, self.N))           # bending rigidity
-        self.twist = np.zeros((self.N, self.N))          # torsion spring constant
+        if plasticity is None:
+            self.k = np.zeros((self.N, self.N))              # spring constant between nodes
+            self.bend = np.zeros((self.N, self.N))           # bending rigidity
+            self.twist = np.zeros((self.N, self.N))          # torsion spring constant
+            self.saveram = False
+        else:
+            self.k = plasticity[0]
+            self.bend = plasticity[1]
+            self.twist = plasticity[2]
+            self.saveram = True
         self.d0 = np.zeros((self.N, self.N))             # equilibrium distance between nodes,
         self.t = np.zeros((self.N, self.N, 3))           # tangent vector of link at node (a.k.a. "preferred direction")
         self.norm = np.zeros((self.N, self.N, 3))        # normal vector of link at node
@@ -367,9 +377,10 @@ class NodeConfiguration:
         """
         self.islink[ni, mi], self.islink[mi, ni] = True, True
 
-        self.k[ni, mi], self.k[mi, ni] = k, k  # spring parameter
-        self.bend[mi, ni], self.bend[ni, mi] = bend, bend
-        self.twist[mi, ni], self.twist[ni, mi] = twist, twist
+        if not self.saveram:
+            self.k[ni, mi], self.k[mi, ni] = k, k  # spring parameter
+            self.bend[mi, ni], self.bend[ni, mi] = bend, bend
+            self.twist[mi, ni], self.twist[ni, mi] = twist, twist
 
         newdX = self.nodesX[mi] - self.nodesX[ni]
         newd = scipy.linalg.norm(newdX)
@@ -416,8 +427,10 @@ class NodeConfiguration:
         self.Flink[ni, mi], self.Flink[mi, ni], self.Mlink[ni, mi], self.Mlink[mi, ni] = null, null, null, null
         self.Flink_tens[ni, mi], self.Flink_tens[mi, ni] = 0, 0
         self.t[ni, mi], self.t[mi, ni], self.norm[ni, mi], self.norm[mi, ni] = null, null, null, null
-        self.k[ni, mi], self.k[mi, ni], self.d0[ni, mi], self.d0[mi, ni] = 0, 0, 0, 0
-        self.bend[ni, mi], self.bend[mi, ni], self.twist[ni, mi], self.twist[mi, ni] = 0, 0, 0, 0
+        self.d0[ni, mi], self.d0[mi, ni] = 0, 0
+        if not self.saveram:
+            self.k[ni, mi], self.k[mi, ni]= 0, 0
+            self.bend[ni, mi], self.bend[mi, ni], self.twist[ni, mi], self.twist[mi, ni] = 0, 0, 0, 0
 
     def updateDists(self, X):
         """
@@ -442,12 +455,18 @@ class NodeConfiguration:
         Parantheses indicate shapes of arrays, nl is the number of links
         """
         nodeinds = np.where(self.islink == True)
+        nodelen = len(nodeinds[0])
         t = self.t[nodeinds]
         norm = self.norm[nodeinds]
         normT = np.transpose(self.norm, axes=(1, 0, 2))[nodeinds]
-        bend = self.bend[nodeinds]
-        twist = self.twist[nodeinds]
-        k = self.k[nodeinds]
+        if not self.saveram:
+            bend = self.bend[nodeinds]
+            twist = self.twist[nodeinds]
+            k = self.k[nodeinds]
+        else:
+            bend = self.bend * np.ones((nodelen,))
+            twist = self.twist * np.ones((nodelen,))
+            k = self.k * np.ones((nodelen,))
         d0 = self.d0[nodeinds]
 
         return t, norm, normT, bend, twist, k, d0, nodeinds
@@ -596,7 +615,7 @@ class NodeConfiguration:
 
 
 class SubsConfiguration:
-    def __init__(self, num_cells, num_subs, d0_0, p_add, p_del, F_contr, dims=3):
+    def __init__(self, num_cells, num_subs, d0_0, p_add, p_del, F_contr, dims=3, plasticity=(15., 10., 1.)):
         """
         Class containing data for all substrate nodes and substrate-tissue links. Is automatically initialized by class
         CellMech if CellMech.issubs is not False. Substrate nodes behave like tissue nodes, but can only form links
@@ -609,6 +628,8 @@ class SubsConfiguration:
         :param p_del: float, base probability for removing tissue-tissue links
         :param dims: 2 or 3, the number of dimensions of the simulations
         :param F_contr: target value for contractile force
+        :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
+            containing global values for the three constants
         """
         self.dims = dims
         # variables to store cell number and cell positions and angles
@@ -628,9 +649,16 @@ class SubsConfiguration:
 
         self.e = np.zeros((self.N, self.Nsubs, 3))           # direction from cell node to subs node
         self.d = np.zeros((self.N, self.Nsubs))              # distance between nodes (a.k.a. "actual distance")
-        self.k = np.zeros((self.N, self.Nsubs))              # spring constant between nodes
-        self.bend = np.zeros((self.N, self.Nsubs))           # bending rigidity
-        self.twist = np.zeros((self.N, self.Nsubs))          # torsion spring constant
+        if plasticity is None:
+            self.k = np.zeros((self.N, self.Nsubs))              # spring constant between nodes
+            self.bend = np.zeros((self.N, self.Nsubs))           # bending rigidity
+            self.twist = np.zeros((self.N, self.Nsubs))          # torsion spring constant
+            self.saveram = False
+        else:
+            self.k = plasticity[0]
+            self.bend = plasticity[1]
+            self.twist = plasticity[2]
+            self.saveram = True
         self.d0 = np.zeros((self.N, self.Nsubs))             # equilibrium distance between nodes
         self.d0_0 = d0_0                                     # global target equilibrium link length
         self.tcell = np.zeros((self.N, self.Nsubs, 3))       # tangent vector of link at cell node
@@ -673,9 +701,10 @@ class SubsConfiguration:
 
         self.islink[ni, mi] = True
 
-        self.k[ni, mi] = k  # spring parameter
-        self.bend[ni, mi] = bend
-        self.twist[ni, mi] = twist
+        if not self.saveram:
+            self.k[ni, mi] = k  # spring parameter
+            self.bend[ni, mi] = bend
+            self.twist[ni, mi] = twist
 
         newdX = self.nodesX[mi] - cellx
         newd = scipy.linalg.norm(newdX)
@@ -716,8 +745,10 @@ class SubsConfiguration:
         self.e[ni, mi], self.d[ni, mi] = null, 0
         self.Mcelllink[ni, mi], self.Msubslink[ni, mi] = null, null
         self.tcell[ni, mi], self.tsubs[ni, mi], self.normcell[ni, mi], self.normsubs[ni, mi] = null, null, null, null
-        self.k[ni, mi], self.d0[ni, mi] = 0, 0
-        self.bend[ni, mi], self.twist[ni, mi] = 0, 0
+        self.d0[ni, mi] = 0
+        if not self.saveram:
+            self.k[ni, mi] = 0
+            self.bend[ni, mi], self.twist[ni, mi] = 0, 0
 
     def updateDists(self, X):
         """
@@ -743,13 +774,19 @@ class SubsConfiguration:
         Parantheses indicate shapes of arrays, nl is the number of links
         """
         nodeinds = np.where(self.islink == True)
+        nodelen = len(nodeinds[0])
         tcell = self.tcell[nodeinds]
         tsubs = self.tsubs[nodeinds]
         normcell = self.normcell[nodeinds]
         normsubs = self.normsubs[nodeinds]
-        bend = self.bend[nodeinds]
-        twist = self.twist[nodeinds]
-        k = self.k[nodeinds]
+        if not self.saveram:
+            bend = self.bend[nodeinds]
+            twist = self.twist[nodeinds]
+            k = self.k[nodeinds]
+        else:
+            bend = self.bend * np.ones((nodelen,))
+            twist = self.twist * np.ones((nodelen,))
+            k = self.k * np.ones((nodelen,))
         d0 = self.d0[nodeinds]
 
         return tcell, tsubs, normcell, normsubs, bend, twist, k, d0, nodeinds
@@ -881,7 +918,7 @@ class SubsConfiguration:
 class CellMech:
     def __init__(self, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., force_limit=15., p_add=1.,
                  p_del=0.2, p_add_subs=None, p_del_subs=None, chkx=False, d0max=2., dims=3, F_contr=1.,
-                 isF0=False, isanchor=False, issubs=False, force_contr=True):
+                 isF0=False, isanchor=False, issubs=False, force_contr=True, plasticity=(15., 10., 1.)):
         """
         Implementation of model for cell-resolved, multiparticle model of plastic tissue deformations and morphogenesis
         first suggested by Czirok et al in 2014 (https://iopscience.iop.org/article/10.1088/1478-3975/12/1/016005/meta,
@@ -916,10 +953,11 @@ class CellMech:
             tissue cell)
         :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent
             componentincluded.
+        :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
+            containing global values for the three constants
         """
         self.dims = dims
         self.issubs = issubs
-
         # variables to store cell number and cell positions and angles
         self.N = num_cells
         self.N2 = 2 * self.N
@@ -946,7 +984,7 @@ class CellMech:
 
         # initialize instance of NodeConfiguration containing data on tissue cells
         self.mynodes = NodeConfiguration(num=num_cells, num_subs=num_subs, p_add=p_add, p_del=p_del, F_contr=F_contr,
-                                         dims=dims, d0_0=d0_0, isF0=isF0, isanchor=isanchor)
+                                         dims=dims, d0_0=d0_0, isF0=isF0, isanchor=isanchor, plasticity=plasticity)
 
         if self.issubs is True:
             # initialize instance of SubsConfiguration containing data on substrate cells, set functions to account for
@@ -956,7 +994,7 @@ class CellMech:
             if p_del_subs is None:
                 p_del_subs = p_del
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0, F_contr=F_contr,
-                                            p_add=p_add_subs, p_del=p_del_subs)
+                                            p_add=p_add_subs, p_del=p_del_subs, plasticity=plasticity)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
@@ -975,7 +1013,7 @@ class CellMech:
             if p_del_subs is None:
                 p_del_subs = p_del
             self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0, F_contr=F_contr,
-                                            p_add=p_add_subs, p_del=p_del_subs)
+                                            p_add=p_add_subs, p_del=p_del_subs, plasticity=plasticity)
             self.mechEquilibrium = lambda: self.mechEquilibrium_lonesome()
             self.makesnap = lambda t: self.makesnap_lonesome(t)
             self.addLinkList = lambda: self.addLinkList_lonesome()

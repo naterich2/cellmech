@@ -24,10 +24,10 @@ if __name__ == '__main__':
 
     Lmax = 5                # Length of confining square
     N = None                # Number of cells. If None: int(Lmax**2)
-    runtime = 100.          # Length of simulation run
+    runtime = 1000.          # Length of simulation run
     dims = 2                # Number of dimensions for the given problem
 
-    savedir = "res"         # Directory to save the simulation results
+    savedir = "resy"         # Directory to save the simulation results
 
     dt = 0.01               # fundamental time unit, relevant only in combination with nmax
     nmax = 1000             # dt * nmax is the maximum time for mechanical equilibration
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     p_add = 1.              # rate to add cell-cell links
     p_del = 0.2             # rate to delete cell-cell links
 
-    chkx = False            # check whether links overlap
+    chkx = True            # check whether links overlap
 
     ####################
 

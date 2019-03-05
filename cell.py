@@ -660,7 +660,7 @@ class SubsConfiguration:
         :param cellx: position of the tissue node
         :param cellphi: orientation of the tissue node
         :param t1: numpy array of shape (3), the vector tangential to the link at the surface of the substrate cell mi
-        or None
+            or None
         :param d0: float, the link's initial equilibrium length. If None: set to current link length
         :param k: float, the link's Hookean constant.
         :param bend: float, the link's bending rigidity

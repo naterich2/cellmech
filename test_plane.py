@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     Lmax = 5                # Length of confining square
     N = None                # Number of cells. If None: int(Lmax**2)
-    runtime = 500.          # Length of simulation run
+    runtime = 100.          # Length of simulation run
     dims = 2                # Number of dimensions for the given problem
 
     savedir = "res"         # Directory to save the simulation results

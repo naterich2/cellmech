@@ -61,7 +61,7 @@ Initiate system by calling:
 
 CellMech(self, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., force_limit=15., p_add=1.,
                  p_del=0.2, p_add_subs=None, p_del_subs=None, chkx=False, d0max=2., dims=3, F_contr=1.,
-                 isF0=False, isanchor=False, issubs=False, force_contr=True)
+                 isF0=False, isanchor=False, issubs=False, force_contr=True, plasticity=(15., 10., 1.))
         
         :param num_cells: integer, the number of tissue cells
         :param num_subs: integer, the number of substrate cells
@@ -127,7 +127,7 @@ mysubs.addlink(ni, mi, cellx, cellphi, t1=None, d0=None, k=15., bend=10., twist=
             
 Run simulation by calling (on instance of class CellMech): 
 
-timeevo(tmax, isinit=True, isfinis=True, record=False, progress=True, dtsave=0)
+timeevo(tmax, isinit=True, isfinis=True, record=True, progress=True, dtsave=0)
 
         :param tmax: Maximum time for simulation run
         :param isinit: boolean, whether this is the first segment of a simulation run

@@ -13,7 +13,7 @@ if __name__ == '__main__':
     N = 5                       # Number of cells. If None: int(2 * Lmax**2)
     dims = 3                    # Number of dimensions for the given problem
 
-    savedir = "res"         # Directory to save the simulation results
+    savedir = "res"             # Directory to save the simulation results
 
     dt = 0.01                   # fundamental time unit, relevant only in combination with nmax
     nmax = 1000                 # dt * nmax is the maximum time for mechanical equilibration

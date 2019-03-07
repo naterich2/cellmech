@@ -30,6 +30,7 @@ if __name__ == '__main__':
     dims = 3                    # Number of dimensions for the given problem
 
     savedir = "res"             # Directory to save the simulation results
+    dtsave = 1.                 # Periodicity of saving snapshots
 
     dt = 0.01                   # fundamental time unit, relevant only in combination with nmax
     nmax = 1000                 # dt * nmax is the maximum time for mechanical equilibration
@@ -96,7 +97,7 @@ if __name__ == '__main__':
                 config.mysubs.addlink(i, j - config.N, config.mynodes.nodesX[i], config.mynodes.nodesPhi[i])
 
     # run and save simulation
-    simdata, subssimdata = config.timeevo(runtime, record=True)
+    simdata, subssimdata = config.timeevo(runtime, dtsave=dtsave)
     config.savedata(savedir)
 
     # animate results

@@ -1540,7 +1540,7 @@ class CellMech:
             if saved0:
                 np.save(savedir + "/subsd0", self.mysubs.d0[linklist])
 
-    def timeevo(self, tmax, isinit=True, isfinis=True, record=False, progress=True, dtsave=0):
+    def timeevo(self, tmax, isinit=True, isfinis=True, record=True, progress=True, dtsave=0):
         """
         Perform simulation run with alternating steps of mechanical equilibration and plasticity
         :param tmax: Maximum time for simulation run

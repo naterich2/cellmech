@@ -222,10 +222,14 @@ if __name__ == '__main__':
 
     ####################
 
-    skip = 1            # only use every skip-th simulation step for animation
-    dir = "res"         # location of simulation results
-    showsubs = False    # whether or not to visualize substrate nodes
-    record = False      # whether or not to create and save a movie in oppose to only showing the animation
+    skip = 1                # only use every skip-th simulation step for animation
+    dir = "res"             # location of simulation results
+    showsubs = False        # whether or not to visualize substrate nodes
+
+    record = False          # whether or not to create and save a movie in oppose to only showing the animation
+    recorddir = "./movie"   # directory for saving the movie
+    recordname = "ani"      # name of the movie
+    fps = 10                # frames per second of the movie
 
     ####################
 
@@ -242,12 +246,13 @@ if __name__ == '__main__':
         subslinkforces = np.load(dir + "/subslinksf.npy")[::skip]
 
         animateconfigs((configs, links, nodeforces, linkforces, ts), (subs, subslinks, subsnodeforces, subslinkforces),
-                       showsubs=False, record=record)
+                       showsubs=False, record=record, recorddir=recorddir, recorname=recordname)
 
     except IOError: # if no substrate results exist
-        animateconfigs((configs, links, nodeforces, linkforces, ts), record=record)
+        animateconfigs((configs, links, nodeforces, linkforces, ts),
+                       record=record, recorddir=recorddir, recordname=recordname)
 
     mlab.show(stop=True)
 
     if record:  # create movie from intermediate files
-        record_cleanup()
+        record_cleanup(recorddir=recorddir, recordname=recordname, fps=fps)

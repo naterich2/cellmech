@@ -183,7 +183,8 @@ Main function from package "animate.py" relevant for using code:
 
 Animate simulation results by calling: 
 
-animateconfigs(Simdata, SubsSimdata=None, figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), figsize=(1000, 1000),
+animateconfigs(Simdata, SubsSimdata=None, record=False, recorddir="./movie/", recordname="ani",
+               figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), figsize=(1000, 1000),
                cmap='viridis', cbar=False, showsubs=False)
                
     :param Simdata: Tuple containing items:
@@ -201,6 +202,10 @@ animateconfigs(Simdata, SubsSimdata=None, figureindex=0, bgcolor=(1, 1, 1), fgco
         subsnodeForces: numpy array of shape (timesteps, ncells, 3) containing forces on substrate cells
         subslinkForces: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 3) containing forces
             on links connecting tissue with substrate cells
+    :param record: boolean, whether or not to create and save a movie in oppose to only showing the animation.
+        If set to true: call record_cleanup() after completing mlab.show()
+    :param recorddir: string, directory where the images are saved and the movie should be save
+    :param recordname: string, prefix of the images and the movie
     :param figureindex: n of figure
     :param bgcolor: tuple of shape (3,) indicating foreground color
     :param fgcolor: tuple of shape (3,) indicating background color

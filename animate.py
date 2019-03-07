@@ -1,9 +1,10 @@
 from mayavi import mlab
 import scipy.linalg
 import numpy as np
+import subprocess, os, sys
 
 
-def showconfig(c, l, nF, fl, figure, figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0),
+def initconfig(c, l, nF, fl, figure, figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0),
                figsize=(1000, 1000), cmap='viridis', vmaxlinks=5, vmaxcells=5, cbar=False, upto=-1):
     """
 
@@ -65,7 +66,7 @@ def pack(A, B):
 
 
 @mlab.animate(delay=70)
-def animateconfigs(Simdata, SubsSimdata=None,
+def animateconfigs(Simdata, SubsSimdata=None, record=False, recorddir="./movie/", recordname="ani",
                    figureindex=0, bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), figsize=(1000, 1000),
                    cmap='viridis', cbar=False, showsubs=False):
     """
@@ -85,6 +86,10 @@ def animateconfigs(Simdata, SubsSimdata=None,
         subsnodeForces: numpy array of shape (timesteps, ncells, 3) containing forces on substrate cells
         subslinkForces: list of length (timesteps,) containing numpy arrays of shapes (nlinks, 3) containing forces
             on links connecting tissue with substrate cells
+    :param record: boolean, whether or not to create and save a movie in oppose to only showing the animation.
+        If set to true: call record_cleanup() after completing mlab.show()
+    :param recorddir: string, directory where the images are saved and the movie should be save
+    :param recordname: string, prefix of the images and the movie
     :param figureindex: n of figure
     :param bgcolor: tuple of shape (3,) indicating foreground color
     :param fgcolor: tuple of shape (3,) indicating background color
@@ -146,11 +151,26 @@ def animateconfigs(Simdata, SubsSimdata=None,
     vmaxlinks = max([np.max(timestep) for timestep in linkForces])
 
     # show first timestep of animation
-    cells, links = showconfig(Configs[0], Links[0], nodeForces[0], linkForces[0], fig, cmap=cmap, cbar=cbar,
+    cells, links = initconfig(Configs[0], Links[0], nodeForces[0], linkForces[0], fig, cmap=cmap, cbar=cbar,
                               vmaxcells=vmaxcells, vmaxlinks=vmaxlinks, upto=upto)
 
     text = mlab.title('0.0', height=.9)  # show current time
 
+    # Output path for saving animation images as intermediate step to producing recording
+    out_path = recorddir
+    if not os.path.isdir(out_path):
+        try:
+            os.mkdir(out_path)
+        except OSError:
+            print "Too many levels in recorddir missing. Sorry!"
+            sys.exit()
+    out_path = os.path.abspath(out_path)
+    prefix = recordname
+    ext = '.png'
+    padding = 5
+    i = 0
+
+    # create animation
     while True:
         for (c, l, nF, fl, t) in zip(Configs, Links, nodeForces, linkForces, ts):
             x, y, z = c.T  # extract all x, y and z positions in individual arrays
@@ -162,7 +182,38 @@ def animateconfigs(Simdata, SubsSimdata=None,
             cells.mlab_source.set(x=x[:upto], y=y[:upto], z=z[:upto], scalars=fc[:upto])
             links.mlab_source.reset(x=xl, y=yl, z=zl, u=rxl, v=ryl, w=rzl, scalars=fl)
             text.set(text='{}'.format(round(t, 2)))
+
+            if record:
+                tstring = str(i).zfill(padding)
+                filename = os.path.join(out_path, '{}_{}{}'.format(prefix, tstring, ext))
+                mlab.savefig(filename=filename)
+                i += 1
+                if i == len(configs):
+                    i = 0
+
             yield
+
+def record_cleanup(recorddir="./movie", recordname="ani", fps=10):
+    """
+    Transform intermediate image files into a movie
+    :param recorddir: string, directory where the images are saved and the video should be save
+    :param recordname: string, prefix of the images and the video
+    :param fps: int, frames per second of the resulting video
+    :return:
+    """
+    out_path = recorddir
+    out_path = os.path.abspath(out_path)
+    prefix = recordname
+    ext = '.png'
+    padding = 5
+
+    ffmpeg_fname = os.path.join(out_path, '{}_%0{}d{}'.format(prefix, padding, ext))
+    cmd = 'ffmpeg -f image2 -r {} -i {} -q:v 1 -vcodec mpeg4 -y {}/{}.mp4'.format(fps, ffmpeg_fname, out_path, prefix)
+    print cmd
+    subprocess.check_output(['bash', '-c', cmd])
+
+    # Remove temp image files with extension
+    [os.remove(out_path + "/" + f) for f in os.listdir(out_path) if f.endswith(ext)]
 
 
 if __name__ == '__main__':
@@ -172,8 +223,9 @@ if __name__ == '__main__':
     ####################
 
     skip = 1            # only use every skip-th simulation step for animation
-    dir = "resy"         # location of simulation results
+    dir = "res"         # location of simulation results
     showsubs = False    # whether or not to visualize substrate nodes
+    record = True       # whether or not to create and save a movie in oppose to only showing the animation
 
     ####################
 
@@ -190,9 +242,12 @@ if __name__ == '__main__':
         subslinkforces = np.load(dir + "/subslinksf.npy")[::skip]
 
         animateconfigs((configs, links, nodeforces, linkforces, ts), (subs, subslinks, subsnodeforces, subslinkforces),
-                       showsubs=False)
+                       showsubs=False, record=record)
 
     except IOError: # if no substrate results exist
-        animateconfigs((configs, links, nodeforces, linkforces, ts))
+        animateconfigs((configs, links, nodeforces, linkforces, ts), record=record)
 
-    mlab.show()
+    mlab.show(stop=True)
+
+    if record:  # create movie from intermediate files
+        record_cleanup()

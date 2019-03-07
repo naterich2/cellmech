@@ -225,7 +225,7 @@ if __name__ == '__main__':
     skip = 1            # only use every skip-th simulation step for animation
     dir = "res"         # location of simulation results
     showsubs = False    # whether or not to visualize substrate nodes
-    record = True       # whether or not to create and save a movie in oppose to only showing the animation
+    record = False      # whether or not to create and save a movie in oppose to only showing the animation
 
     ####################
 

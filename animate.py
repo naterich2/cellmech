@@ -158,7 +158,7 @@ def animateconfigs(Simdata, SubsSimdata=None, record=False, recorddir="./movie/"
 
     # Output path for saving animation images as intermediate step to producing recording
     out_path = recorddir
-    if not os.path.isdir(out_path):
+    if record and not os.path.isdir(out_path):
         try:
             os.mkdir(out_path)
         except OSError:

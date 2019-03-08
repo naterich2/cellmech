@@ -1579,8 +1579,8 @@ class CellMech:
                 tmax += t
             else:
                 t = 0
-        tlast_rec = 0
-        tlast_save = 0
+        tlast_rec = t
+        tlast_save = t
         if dtsave is None:
             dtsave = tmax
 

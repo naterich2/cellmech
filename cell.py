@@ -1540,7 +1540,8 @@ class CellMech:
             if saved0:
                 np.save(savedir + "/subsd0", self.mysubs.d0[linklist])
 
-    def timeevo(self, tmax, isinit=True, isfinis=True, record=True, progress=True, dtsave=0):
+    def timeevo(self, tmax, isinit=True, isfinis=True, record=True, progress=True, dtrec=0,
+                savedata=True, savedir="res", dtsave=None):
         """
         Perform simulation run with alternating steps of mechanical equilibration and plasticity
         :param tmax: Maximum time for simulation run
@@ -1548,18 +1549,22 @@ class CellMech:
         :param isfinis: boolean, whether this is the last segment of a simulation run
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
-        :param dtsave: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
-            each time t has crossed a new n*dtsave line
-        :return: if self.issubs is False: Tuple of a) numpy array containing x-positions of tissue nodes at the end of each
-        time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes for
-        each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of times
-        at time steps
-        else: additional tuple of f) numpy array containing fixed positions of substrate nodes, g) list of index tuples for
-        substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
+        :param dtrec: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
+            each time t has crossed a new n*dtrec line
+        :param savedata: boolean, whether to write the data to the drive (make sure that record==True)
+        :param savedir: string, name of the directory for saving the data
+        :param dtsave: float, snapshot will be written to drive after each time t has crossed a new n*dtsave line;
+            or None, in that case data will only be written after tmax
+        :return: if self.issubs is False: Tuple of a) numpy array containing x-positions of tissue nodes at the end of
+        each time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes
+        for each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of
+        times at time steps
+        else: additional tuple of f) numpy array containing fixed positions of substrate nodes, g) list of index tuples
+        for substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
         forces on substrate-tissue links at time steps
         """
-        # pre-production
 
+        # pre-production
 
         if isinit:
             myrandom = npr.random((self.mynodes.randomlength,))
@@ -1575,7 +1580,10 @@ class CellMech:
                 tmax += t
             else:
                 t = 0
-        tlast = t
+        tlast_rec = 0
+        tlast_save = 0
+        if dtsave is None:
+            dtsave = tmax
 
         # main loop
 
@@ -1584,10 +1592,13 @@ class CellMech:
             t += dt
             dt = self.modlink()
             t += dt
-            if record and (t - tlast > dtsave or t > tmax):
+            if record and (t - tlast_rec > dtrec or t > tmax):
                 self.makesnap(t)
-                if dtsave != 0:
-                    tlast = t - t % dtsave
+                if dtrec != 0:
+                    tlast_rec = t - t % dtrec
+            if record and savedata and (t - tlast_save > dtsave or t > tmax):
+                self.savedata(savedir)
+                tlast_save = t - t % dtsave
             if progress:
                 update_progress(t / tmax)
 

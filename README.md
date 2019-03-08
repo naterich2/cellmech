@@ -127,21 +127,27 @@ mysubs.addlink(ni, mi, cellx, cellphi, t1=None, d0=None, k=15., bend=10., twist=
             
 Run simulation by calling (on instance of class CellMech): 
 
-timeevo(tmax, isinit=True, isfinis=True, record=True, progress=True, dtsave=0)
+timeevo(tmax, isinit=True, isfinis=True, record=True, progress=True, dtrec=0,
+                savedata=True, savedir="res", dtsave=None)
 
         :param tmax: Maximum time for simulation run
         :param isinit: boolean, whether this is the first segment of a simulation run
         :param isfinis: boolean, whether this is the last segment of a simulation run
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
-        :param dtsave: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
-            each time t has crossed a new n*dtsave line
+        :param dtrec: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
+            each time t has crossed a new n*dtrec line
+        :param savedata: boolean, whether to write the data to the drive (make sure that record==True)
+        :param savedir: string, name of the directory for saving the data
+        :param dtsave: float, snapshot will be written to drive after each time t has crossed a new n*dtsave line;
+            or None, in that case data will only be written after tmax
         :return: if self.issubs is False: Tuple of a) numpy array containing x-positions of tissue nodes at the end of 
-            eachtime step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on 
-            nodes for each time step, d) list containing numpy array for each timestep with forces on links, e) numpy 
-            array of time at time steps
-            else: additional tuple of f) numpy array containing fixed positions of substrate nodes, g) list of index 
-            tuples for substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, 
+        each time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes 
+        for each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of 
+        times at time steps
+        else: additional tuple of f) numpy array containing fixed positions of substrate nodes, g) list of index tuples
+        for substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
+        forces on substrate-tissue links at time stepsray of forces on substrate nodes at time steps, 
             i) list of forces on substrate-tissue links at time steps
             
             

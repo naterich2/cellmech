@@ -27,8 +27,10 @@ if __name__ == '__main__':
     runtime = 100.          # Length of simulation run
     dims = 2                # Number of dimensions for the given problem
 
+    dtrec = 0.              # Periodicity of making configuration snapshots (done after every plasticity step if 0)
+    savedata = True         # Whether to write simulation results to file
     savedir = "res"         # Directory to save the simulation results
-    dtsave = 1.             # Periodicity of saving snapshots
+    dtsave = 10.            # Periodicity of writing data to hard drive (done only after end of runtime if None)
 
     dt = 0.01               # fundamental time unit, relevant only in combination with nmax
     nmax = 1000             # dt * nmax is the maximum time for mechanical equilibration
@@ -70,14 +72,13 @@ if __name__ == '__main__':
             config.mynodes.addlink(i, j)
 
     # run and save simulation
-    simdata = config.timeevo(runtime/2., dtsave=dtsave)
+    simdata = config.timeevo(runtime/2., dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
     config.savedata(savedir)
 
     config2 = relaunch_CellMech(savedir, N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del,
                       chkx=chkx, d0max=d0max, dims=dims, issubs=False)
 
-    simdata2 = config2.timeevo(runtime/2., dtsave=dtsave, isinit=False)
-    config2.savedata(savedir)
+    simdata2 = config2.timeevo(runtime/2., isinit=False, dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
 
     # animate results
     animateconfigs(simdata2)

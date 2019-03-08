@@ -1540,13 +1540,12 @@ class CellMech:
             if saved0:
                 np.save(savedir + "/subsd0", self.mysubs.d0[linklist])
 
-    def timeevo(self, tmax, isinit=True, isfinis=True, record=True, progress=True, dtrec=0,
+    def timeevo(self, tmax, isinit=True, record=True, progress=True, dtrec=0,
                 savedata=True, savedir="res", dtsave=None):
         """
         Perform simulation run with alternating steps of mechanical equilibration and plasticity
         :param tmax: Maximum time for simulation run
         :param isinit: boolean, whether this is the first segment of a simulation run
-        :param isfinis: boolean, whether this is the last segment of a simulation run
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
         :param dtrec: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
@@ -1604,15 +1603,10 @@ class CellMech:
 
         # post-production
 
-        if record and isfinis:
-            self.mynodes.nodesnap = np.array(self.mynodes.nodesnap)
-            self.mynodes.fnodesnap = np.array(self.mynodes.fnodesnap)
-            self.mynodes.snaptimes = np.array(self.snaptimes)
-
-        if isfinis and self.issubs is False:
+        if record and self.issubs is False:
             return (self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap,
                    self.snaptimes)
-        elif isfinis:
+        elif record:
             return (self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap,
                    self.snaptimes), \
                    (self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap)

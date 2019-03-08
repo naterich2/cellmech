@@ -127,12 +127,11 @@ mysubs.addlink(ni, mi, cellx, cellphi, t1=None, d0=None, k=15., bend=10., twist=
             
 Run simulation by calling (on instance of class CellMech): 
 
-timeevo(tmax, isinit=True, isfinis=True, record=True, progress=True, dtrec=0,
-                savedata=True, savedir="res", dtsave=None)
+timeevo(tmax, isinit=True, record=True, progress=True, dtrec=0,
+        savedata=True, savedir="res", dtsave=None)
 
         :param tmax: Maximum time for simulation run
         :param isinit: boolean, whether this is the first segment of a simulation run
-        :param isfinis: boolean, whether this is the last segment of a simulation run
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
         :param dtrec: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise

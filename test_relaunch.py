@@ -73,7 +73,6 @@ if __name__ == '__main__':
 
     # run and save simulation
     simdata = config.timeevo(runtime/2., dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
-    config.savedata(savedir)
 
     config2 = relaunch_CellMech(savedir, N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del,
                       chkx=chkx, d0max=d0max, dims=dims, issubs=False)

@@ -140,14 +140,7 @@ timeevo(tmax, isinit=True, record=True, progress=True, dtrec=0,
         :param savedir: string, name of the directory for saving the data
         :param dtsave: float, snapshot will be written to drive after each time t has crossed a new n*dtsave line;
             or None, in that case data will only be written after tmax
-        :return: if self.issubs is False: Tuple of a) numpy array containing x-positions of tissue nodes at the end of 
-        each time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes 
-        for each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of 
-        times at time steps
-        else: additional tuple of f) numpy array containing fixed positions of substrate nodes, g) list of index tuples
-        for substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
-        forces on substrate-tissue links at time stepsray of forces on substrate nodes at time steps, 
-            i) list of forces on substrate-tissue links at time steps
+        :return: 
             
             
 Relaunch simulation by calling:
@@ -184,6 +177,16 @@ relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001,
 ************************************************************************************************************************
 
 Main function from package "animate.py" relevant for using code:
+
+
+Recover simulation data from files by calling:
+
+fetchdata(dir, skip=1):
+    :param dir: string, name of directory holding data
+    :param skip: int, only use every skip-th simulation step for animation
+    :return: a) boolean value indicating if simulation data contains substrate information, b) tuple with data
+        on node positions, links, forces on nodes, forces on links and time steps and c) if substrate exists:
+        positions of substrate nodes, substrate links, forces on substrate nodes, forces on substrate links
 
 
 Animate simulation results by calling: 

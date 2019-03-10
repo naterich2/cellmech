@@ -1618,13 +1618,7 @@ class CellMech:
         :param savedir: string, name of the directory for saving the data
         :param dtsave: float, snapshot will be written to drive after each time t has crossed a new n*dtsave line;
             or None, in that case data will only be written after tmax
-        :return: if self.issubs is False: Tuple of a) numpy array containing x-positions of tissue nodes at the end of
-        each time step, b) list containing numpy arrays of link index tuples, c) numpy array containing forces on nodes
-        for each time step, d) list containing numpy array for each timestep with forces on links, e) numpy array of
-        times at time steps
-        else: additional tuple of f) numpy array containing fixed positions of substrate nodes, g) list of index tuples
-        for substrate-tissue links at time steps, h) numpy array of forces on substrate nodes at time steps, i) list of
-        forces on substrate-tissue links at time steps
+        :return:
         """
 
         # pre-production

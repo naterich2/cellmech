@@ -72,13 +72,14 @@ if __name__ == '__main__':
             config.mynodes.addlink(i, j)
 
     # run and save simulation
-    simdata = config.timeevo(runtime/2., dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
+    config.timeevo(runtime/2., dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
 
     config2 = relaunch_CellMech(savedir, N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del,
                       chkx=chkx, d0max=d0max, dims=dims, issubs=False)
 
-    simdata2 = config2.timeevo(runtime/2., isinit=False, dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
+    config2.timeevo(runtime/2., isinit=False, dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
+    dump, simdata = fetchdata(savedir)
 
     # animate results
-    animateconfigs(simdata2)
+    animateconfigs(simdata)
     mlab.show()

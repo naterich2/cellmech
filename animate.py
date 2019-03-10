@@ -216,6 +216,33 @@ def record_cleanup(recorddir="./movie", recordname="ani", fps=10):
     [os.remove(out_path + "/" + f) for f in os.listdir(out_path) if f.endswith(ext)]
 
 
+def fetchdata(dir, skip=1):
+    """
+    Loads data for simulation from files in directory "dir"
+    :param dir: string, name of directory holding data
+    :param skip: int, only use every skip-th simulation step for animation
+    :return: a) boolean value indicating if simulation data contains substrate information, b) tuple with data
+        on node positions, links, forces on nodes, forces on links and time steps and c) if substrate exists:
+        positions of substrate nodes, substrate links, forces on substrate nodes, forces on substrate links
+    """
+    configs = np.load(dir + "/nodesr.npy")[::skip]
+    links = np.load(dir + "/links.npy")[::skip]
+    nodeforces = np.load(dir + "/nodesf.npy")[::skip]
+    linkforces = np.load(dir + "/linksf.npy")[::skip]
+    ts = np.load(dir + "/ts.npy")[::skip]
+
+    try:     # try to include substrate details if they exists
+        subs = np.load(dir + "/subsnodesr.npy")[::skip]
+        subslinks = np.load(dir + "/subslinks.npy")[::skip]
+        subsnodeforces = np.load(dir + "/subsnodesf.npy")[::skip]
+        subslinkforces = np.load(dir + "/subslinksf.npy")[::skip]
+
+        return True, (configs, links, nodeforces, linkforces, ts), (subs, subslinks, subsnodeforces, subslinkforces)
+
+    except IOError: # if no substrate results exist
+        return False, (configs, links, nodeforces, linkforces, ts)
+
+
 if __name__ == '__main__':
 
     # produce animation from previously saved simulation results
@@ -233,24 +260,13 @@ if __name__ == '__main__':
 
     ####################
 
-    configs = np.load(dir + "/nodesr.npy")[::skip]
-    links = np.load(dir + "/links.npy")[::skip]
-    nodeforces = np.load(dir + "/nodesf.npy")[::skip]
-    linkforces = np.load(dir + "/linksf.npy")[::skip]
-    ts = np.load(dir + "/ts.npy")[::skip]
+    simdata = fetchdata(dir, skip)
 
-    try:     # try to include substrate details if they exists
-        subs = np.load(dir + "/subsnodesr.npy")[::skip]
-        subslinks = np.load(dir + "/subslinks.npy")[::skip]
-        subsnodeforces = np.load(dir + "/subsnodesf.npy")[::skip]
-        subslinkforces = np.load(dir + "/subslinksf.npy")[::skip]
-
-        animateconfigs((configs, links, nodeforces, linkforces, ts), (subs, subslinks, subsnodeforces, subslinkforces),
-                       showsubs=False, record=record, recorddir=recorddir, recorname=recordname)
-
-    except IOError: # if no substrate results exist
-        animateconfigs((configs, links, nodeforces, linkforces, ts),
-                       record=record, recorddir=recorddir, recordname=recordname)
+    if simdata[0]:
+        animateconfigs(simdata[1], simdata[2],
+                       showsubs=showsubs, record=record, recorddir=recorddir, recordname=recordname)
+    else:
+        animateconfigs(simdata[1], record=record, recorddir=recorddir, recordname=recordname)
 
     mlab.show(stop=True)
 

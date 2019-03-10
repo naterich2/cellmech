@@ -72,7 +72,8 @@ if __name__ == '__main__':
             config.mynodes.addlink(i, j)
 
     # run and save simulation
-    simdata = config.timeevo(runtime, dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
+    config.timeevo(runtime, dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
+    dump, simdata = fetchdata(savedir)
 
     # animate results
     animateconfigs(simdata)

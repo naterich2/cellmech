@@ -75,7 +75,8 @@ if __name__ == '__main__':
             break
 
     # run and save simulation
-    simdata, subssimdata = config.timeevo(runtime, dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
+    config.timeevo(runtime, dtrec=dtrec, savedata=savedata, savedir=savedir, dtsave=dtsave)
+    dump, simdata, subssimdata = fetchdata(savedir)
 
     # animate results
     animateconfigs(simdata, subssimdata, showsubs=False)

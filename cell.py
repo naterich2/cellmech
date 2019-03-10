@@ -1,8 +1,6 @@
 from __future__ import division
 
-import sys
-import os
-import warnings
+import sys, os, shutil, warnings
 
 import numpy as np
 import numpy.random as npr
@@ -978,9 +976,11 @@ class CellMech:
             self.chkx = False
         self.d0max = d0max
 
+        self.force_contr = force_contr
+
         # stuff for documentation
         self.snaptimes = []  # stores the simulation timesteps
-        self.force_contr = force_contr
+        self.nsaves = 0
 
         # initialize instance of NodeConfiguration containing data on tissue cells
         self.mynodes = NodeConfiguration(num=num_cells, num_subs=num_subs, p_add=p_add, p_del=p_del, F_contr=F_contr,
@@ -1482,10 +1482,24 @@ class CellMech:
         self.mysubs.flinksnap.append(-self.mysubs.Flink[linkList[..., 0], linkList[..., 1]])
         self.snaptimes.append(t)
 
+    def saveonesnap(self, savewhat, savedir, savelist):
+        """
+        Save current snapshot information of one type to disk
+        :param savewhat: str, what to save, used as name for directory to save snapshots
+        :param savedir: str, name of directory holding all simulation data
+        :param savelist: list containing snapshots
+        :return: empty list
+        """
+        nstr = str(self.nsaves).zfill(3)
+        if not os.path.isdir("./" + savedir + "/" + savewhat):
+            os.mkdir("./" + savedir + "/" + savewhat)
+        np.save(savedir + "/" + savewhat + "/" + nstr, savelist)
+        return []
+
     def savedata(self, savedir="res", savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True, savet=True,
                  savephi=True, savetang=True, savenorm=True, saved0=True):
         """
-        Save important configuration data to disk
+        Save important configuration data to disk and clear snapshots in memory
         :param savedir: string, name of directory to save in (based on current working directory)
         :param savenodes_r: boolean, whether to save node positions
         :param savelinks: boolean, whether to save links
@@ -1501,15 +1515,15 @@ class CellMech:
         if not os.path.isdir("./" + savedir):
             os.mkdir("./" + savedir)
         if savenodes_r:
-            np.save(savedir + "/nodesr", self.mynodes.nodesnap)
+            self.mynodes.nodesnap = self.saveonesnap("nodesr", savedir, self.mynodes.nodesnap)
         if savenodes_f:
-            np.save(savedir + "/nodesf", self.mynodes.fnodesnap)
+            self.mynodes.fnodesnap = self.saveonesnap("nodesf", savedir, self.mynodes.fnodesnap)
         if savelinks:
-            np.save(savedir + "/links", self.mynodes.linksnap)
+            self.mynodes.linksnap = self.saveonesnap("links", savedir, self.mynodes.linksnap)
         if savelinks_f:
-            np.save(savedir + "/linksf", self.mynodes.flinksnap)
+            self.mynodes.flinksnap = self.saveonesnap("linksf", savedir, self.mynodes.flinksnap)
         if savet:
-            np.save(savedir + "/ts", self.snaptimes)
+            self.snaptimes = self.saveonesnap("ts", savedir, self.snaptimes)
         if savephi:
             np.save(savedir + "/phi", self.mynodes.nodesPhi)
         if savetang:
@@ -1524,11 +1538,11 @@ class CellMech:
             if savenodes_r:
                 np.save(savedir + "/subsnodesr", self.mysubs.nodesX)
             if savenodes_f:
-                np.save(savedir + "/subsnodesf", self.mysubs.fnodesnap)
+                self.mysubs.fnodesnap = self.saveonesnap("subsnodesf", savedir, self.mysubs.fnodesnap)
             if savelinks:
-                np.save(savedir + "/subslinks", self.mysubs.linksnap)
+                self.mysubs.linksnap = self.saveonesnap("subslinks", savedir, self.mysubs.linksnap)
             if savelinks_f:
-                np.save(savedir + "/subslinksf", self.mysubs.flinksnap)
+                self.mysubs.flinksnap = self.saveonesnap("subslinksf", savedir, self.mysubs.flinksnap)
             if savephi:
                 np.save(savedir + "/subsphi", self.mysubs.nodesPhi)
             if savetang:
@@ -1539,6 +1553,56 @@ class CellMech:
                 np.save(savedir + "/subsnormsubs", self.mysubs.normsubs[linklist])
             if saved0:
                 np.save(savedir + "/subsd0", self.mysubs.d0[linklist])
+
+        self.nsaves += 1
+
+    def cleanonesave(self, savewhat, savedir):
+        """
+        Delete a directory holding temporary snapshot files and combine them into one .npy file
+        :param savewhat: str, type of data to be saved, is also the name of the directory in savedir containing the data
+            and the name of the .npy file which will hold the combined data
+        :param savedir: str, directory containing all simulation results
+        :return:
+        """
+        templist = []
+        savestr = savedir + "/" + savewhat
+        for i in range(self.nsaves):
+            nstr = savestr +  "/" + str(i).zfill(3) + ".npy"
+            templist += list(np.load(nstr))
+        np.save(savestr, templist)
+        del templist
+        shutil.rmtree(savestr)
+
+    def cleansaves(self, savedir="res", savenodes_r=True, savelinks=True, savenodes_f=True, savelinks_f=True,
+                   savet=True):
+        """
+        Clean up temporary directories, combine temporary .npy files into one .npy file each
+        :param savedir: string, name of directory to save in (based on current working directory)
+        :param savenodes_r: boolean, whether node positions where saved
+        :param savelinks: boolean, whether links where saved
+        :param savenodes_f: boolean, whether forces on nodes where saved
+        :param savelinks_f: boolean, whether forces on links where saved
+        :param savet: boolean, whether timesteps where saved
+        :return:
+        """
+        if savenodes_r:
+            self.cleanonesave("nodesr", savedir)
+        if savenodes_f:
+            self.cleanonesave("nodesf", savedir)
+        if savelinks:
+            self.cleanonesave("links", savedir)
+        if savelinks_f:
+            self.cleanonesave("linksf", savedir)
+        if savet:
+            self.cleanonesave("ts", savedir)
+
+        if self.issubs:
+            if savenodes_f:
+                self.cleanonesave("subsnodesf", savedir)
+            if savelinks:
+                self.cleanonesave("subslinks", savedir)
+            if savelinks_f:
+                self.cleanonesave("subslinksf", savedir)
 
     def timeevo(self, tmax, isinit=True, record=True, progress=True, dtrec=0,
                 savedata=True, savedir="res", dtsave=None):
@@ -1603,13 +1667,8 @@ class CellMech:
 
         # post-production
 
-        if record and self.issubs is False:
-            return (self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap,
-                   self.snaptimes)
-        elif record:
-            return (self.mynodes.nodesnap, self.mynodes.linksnap, self.mynodes.fnodesnap, self.mynodes.flinksnap,
-                   self.snaptimes), \
-                   (self.mysubs.nodesX, self.mysubs.linksnap, self.mysubs.fnodesnap, self.mysubs.flinksnap)
+        if record and savedata:
+            self.cleansaves(savedir)
 
     def oneequil(self):
         """

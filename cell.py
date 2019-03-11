@@ -186,6 +186,7 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
 
     # save snapshots in class instance
     c.snaptimes = list(sts)
+    c.lastt = c.snaptimes[-1]
 
     c.mynodes.nodesnap = list(snodesr)
     c.mynodes.fnodesnap = list(snodesf)
@@ -980,6 +981,7 @@ class CellMech:
 
         # stuff for documentation
         self.snaptimes = []  # stores the simulation timesteps
+        self.lastt = 0
         self.nsaves = 0
 
         # initialize instance of NodeConfiguration containing data on tissue cells
@@ -1523,6 +1525,7 @@ class CellMech:
         if savelinks_f:
             self.mynodes.flinksnap = self.saveonesnap("linksf", savedir, self.mynodes.flinksnap)
         if savet:
+            self.lastt = self.snaptimes[-1]
             self.snaptimes = self.saveonesnap("ts", savedir, self.snaptimes)
         if savephi:
             np.save(savedir + "/phi", self.mynodes.nodesPhi)
@@ -1636,7 +1639,7 @@ class CellMech:
                 t = self.snaptimes[-1]
                 tmax += t
             else:
-                t = 0
+                t = self.lastt
         tlast_rec = t
         tlast_save = t
         if dtsave is None:

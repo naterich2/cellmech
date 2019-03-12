@@ -1636,10 +1636,10 @@ class CellMech:
                 self.makesnap(t)
         else:
             if record:
-                t = self.snaptimes[-1]
+                t = self.lastt
                 tmax += t
             else:
-                t = self.lastt
+                t = 0
         tlast_rec = t
         tlast_save = t
         if dtsave is None:

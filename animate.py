@@ -188,7 +188,7 @@ def animateconfigs(Simdata, SubsSimdata=None, record=False, recorddir="./movie/"
                 filename = os.path.join(out_path, '{}_{}{}'.format(prefix, tstring, ext))
                 mlab.savefig(filename=filename)
                 i += 1
-                if i == len(configs):
+                if i == len(Configs):
                     i = 0
 
             yield

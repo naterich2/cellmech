@@ -174,73 +174,77 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
                  force_contr=force_contr)
 
     # load data (everything not related to the substrate)
+    # load data on time, save the last time step,
+    # create sub-folder in savedir for snapshots with all previous data saved as number 0
     sts = np.load(savedir + "/ts.npy")
-    snodesr = np.load(savedir + "/nodesr.npy")
-    sphi = np.load(savedir + "/phi.npy")
-    snodesf = np.load(savedir + "/nodesf.npy")
-    slinks = np.load(savedir + "/links.npy")
-    slinksf = np.load(savedir + "/linksf.npy")
-    stang = np.load(savedir + "/tang.npy")
-    snorm = np.load(savedir + "/norm.npy")
-    sd0 = np.load(savedir + "/d0.npy")
-
-    # save snapshots in class instance
     c.snaptimes = list(sts)
     c.lastt = c.snaptimes[-1]
+    c.snaptimes = c.saveonesnap("ts", savedir, c.snaptimes)
 
+    # load data on tissue cell positions, save last positions,
+    # create sub-folder in savedir for snapshots with all previous data saved as number 0
+    snodesr = np.load(savedir + "/nodesr.npy")
     c.mynodes.nodesnap = list(snodesr)
-    c.mynodes.fnodesnap = list(snodesf)
-    c.mynodes.linksnap = list(slinks)
-    c.mynodes.flinksnap = list(slinksf)
+    c.mynodes.nodesX = c.mynodes.nodesnap[-1]
+    c.mynodes.nodesnap = c.saveonesnap("nodesr", savedir, c.mynodes.nodesnap)
 
-    # set up tissue
+    # load last tissue cell orientations
+    c.mynodes.nodesPhi = np.load(savedir + "/phi.npy")
+
+    # load data on existing links, recreate last existing tissue-tissue links,
+    # create sub-folder in savedir for snapshots with all previous data saved as number 0
+    slinks = list(np.load(savedir + "/links.npy"))
     lastlinks = slinks[-1]
-
-    c.mynodes.nodesX = snodesr[-1]
-    c.mynodes.nodesPhi = sphi
-
     for link in lastlinks:
         c.mynodes.addlink(link[0], link[1])
+    c.mynodes.linksnap = c.saveonesnap("links", savedir, slinks)
 
+    # create sub-folder in savedir for snapshots on node forces with all previous data saved as number 0
+    c.mynodes.fnodesnap = c.saveonesnap("nodesf", savedir, np.load(savedir + "/nodesf.npy"))
+
+    # create sub-folder in savedir for snapshots on link forces with all previous data saved as number 0
+    c.mynodes.flinksnap = c.saveonesnap("linksf", savedir, np.load(savedir + "/linksf.npy"))
+
+    # load data on t and n vectors and on individual link equilibrium lengths
     nodeinds = np.where(c.mynodes.islink == True)
 
-    c.mynodes.t[nodeinds] = stang
-    c.mynodes.norm[nodeinds] = snorm
-    c.mynodes.d0[nodeinds] = sd0
+    c.mynodes.t[nodeinds] = np.load(savedir + "/tang.npy")
+    c.mynodes.norm[nodeinds] = np.load(savedir + "/norm.npy")
+    c.mynodes.d0[nodeinds] = np.load(savedir + "/d0.npy")
 
     if c.issubs is not False:
         # do everything for substrate
-        ssubsnodesr = np.load(savedir + "/subsnodesr.npy")
-        ssubsphi = np.load(savedir + "/subsphi.npy")
-        ssubsnodesf = np.load(savedir + "/subsnodesf.npy")
-        ssubslinks = np.load(savedir + "/subslinks.npy")
-        ssubslinksf = np.load(savedir + "/subslinksf.npy")
-        stcell = np.load(savedir + "/substcell.npy")
-        stsubs = np.load(savedir + "/substsubs.npy")
-        snormcell = np.load(savedir + "/subsnormcell.npy")
-        snormsubs = np.load(savedir + "/subsnormsubs.npy")
-        ssubsd0 = np.load(savedir + "/subsd0.npy")
+        # load data on tissue cell positions, save last positions,
+        # create sub-folder in savedir for snapshots with all previous data saved as number 0
+        c.mysubs.nodesX = np.load(savedir + "/subsnodesr.npy")
 
-        c.mysubs.nodesnap = list(ssubsnodesr)
-        c.mysubs.fnodesnap = list(ssubsnodesf)
-        c.mysubs.linksnap = list(ssubslinks)
-        c.mysubs.flinksnap = list(ssubslinksf)
+        # load last tissue cell orientations
+        c.mysubs.nodesPhi = np.load(savedir + "/subsphi.npy")
 
+        # load data on existing links, recreate last existing tissue-tissue links,
+        # create sub-folder in savedir for snapshots with all previous data saved as number 0
+        ssubslinks = list(np.load(savedir + "/subslinks.npy"))
         lastlinks = ssubslinks[-1]
-
-        c.mysubs.nodesX = ssubsnodesr
-        c.mysubs.nodesPhi = ssubsphi
-
         for link in lastlinks:
             c.mysubs.addlink(link[0], link[1], c.mynodes.nodesX[link[0]], c.mynodes.nodesPhi[link[0]])
+        c.mysubs.linksnap = c.saveonesnap("subslinks", savedir, ssubslinks)
 
+        # create sub-folder in savedir for snapshots on node forces with all previous data saved as number 0
+        c.mysubs.fnodesnap = c.saveonesnap("subsnodesf", savedir, np.load(savedir + "/subsnodesf.npy"))
+
+        # create sub-folder in savedir for snapshots on link forces with all previous data saved as number 0
+        c.mynodes.flinksnap = c.saveonesnap("subslinksf", savedir, np.load(savedir + "/subslinksf.npy"))
+
+        # load data on t and n vectors and on individual link equilibrium lengths
         nodeinds = np.where(c.mysubs.islink == True)
 
-        c.mysubs.tcell[nodeinds] = stcell
-        c.mysubs.tsubs[nodeinds] = stsubs
-        c.mysubs.normcell[nodeinds] = snormcell
-        c.mysubs.normsubs[nodeinds] = snormsubs
-        c.mysubs.d0[nodeinds] = ssubsd0
+        c.mysubs.tcell[nodeinds] = np.load(savedir + "/substcell.npy")
+        c.mysubs.tsubs[nodeinds] = np.load(savedir + "/substsubs.npy")
+        c.mysubs.normcell[nodeinds] = np.load(savedir + "/subsnormcell.npy")
+        c.mysubs.normsubs[nodeinds] = np.load(savedir + "/subsnormsubs.npy")
+        c.mysubs.d0[nodeinds] = np.load(savedir + "/subsd0.npy")
+
+    c.nsaves += 1
 
     return c
 

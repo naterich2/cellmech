@@ -1611,12 +1611,14 @@ class CellMech:
             if savelinks_f:
                 self.cleanonesave("subslinksf", savedir)
 
-    def timeevo(self, tmax, isinit=True, record=True, progress=True, dtrec=0,
+    def timeevo(self, tmax, isinit=True, isfinis=True, record=True, progress=True, dtrec=0,
                 savedata=True, savedir="res", dtsave=None):
         """
         Perform simulation run with alternating steps of mechanical equilibration and plasticity
         :param tmax: Maximum time for simulation run
         :param isinit: boolean, whether this is the first segment of a simulation run
+        :param isfinis: boolean, whether this is the final segment of a simulation run (the simulation can still
+            be continued otherwise, but a new class instance should then be initiated with relaunch_CellMech())
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
         :param dtrec: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
@@ -1668,7 +1670,7 @@ class CellMech:
 
         # post-production
 
-        if record and savedata:
+        if record and savedata and isfinis:
             self.cleansaves(savedir)
 
     def oneequil(self):

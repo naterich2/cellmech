@@ -127,11 +127,13 @@ mysubs.addlink(ni, mi, cellx, cellphi, t1=None, d0=None, k=15., bend=10., twist=
             
 Run simulation by calling (on instance of class CellMech): 
 
-timeevo(tmax, isinit=True, record=True, progress=True, dtrec=0,
+timeevo(tmax, isinit=True, isfinis=True, record=True, progress=True, dtrec=0,
         savedata=True, savedir="res", dtsave=None)
 
         :param tmax: Maximum time for simulation run
         :param isinit: boolean, whether this is the first segment of a simulation run
+        :param isfinis: boolean, whether this is the final segment of a simulation run (the simulation can still 
+            be continued otherwise, but a new class instance should then be initiated with relaunch_CellMech())
         :param record: boolean, whether to save simulation data for after code has finished
         :param progress: show progress bar
         :param dtrec: float, snapshot will be made of config after every tissue plasticity step if dtsave==0, otherwise
@@ -140,7 +142,7 @@ timeevo(tmax, isinit=True, record=True, progress=True, dtrec=0,
         :param savedir: string, name of the directory for saving the data
         :param dtsave: float, snapshot will be written to drive after each time t has crossed a new n*dtsave line;
             or None, in that case data will only be written after tmax
-        :return: 
+        :return:
             
             
 Relaunch simulation by calling:

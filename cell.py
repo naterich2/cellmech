@@ -180,6 +180,7 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
     c.snaptimes = list(sts)
     c.lastt = c.snaptimes[-1]
     c.snaptimes = c.saveonesnap("ts", savedir, c.snaptimes)
+    del sts
 
     # load data on tissue cell positions, save last positions,
     # create sub-folder in savedir for snapshots with all previous data saved as number 0
@@ -187,6 +188,7 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
     c.mynodes.nodesnap = list(snodesr)
     c.mynodes.nodesX = c.mynodes.nodesnap[-1]
     c.mynodes.nodesnap = c.saveonesnap("nodesr", savedir, c.mynodes.nodesnap)
+    del snodesr
 
     # load last tissue cell orientations
     c.mynodes.nodesPhi = np.load(savedir + "/phi.npy")
@@ -198,6 +200,7 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
     for link in lastlinks:
         c.mynodes.addlink(link[0], link[1])
     c.mynodes.linksnap = c.saveonesnap("links", savedir, slinks)
+    del slinks, lastlinks
 
     # create sub-folder in savedir for snapshots on node forces with all previous data saved as number 0
     c.mynodes.fnodesnap = c.saveonesnap("nodesf", savedir, np.load(savedir + "/nodesf.npy"))

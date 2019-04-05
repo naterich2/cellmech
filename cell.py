@@ -254,7 +254,7 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
 
 class NodeConfiguration:
     def __init__(self, num, num_subs, d0_0, p_add, p_del, F_contr, dims=3, isF0=False, isanchor=False,
-                 plasticity=(15., 10., 1.)):
+                 plasticity=(10., 1., 15.)):
         """
         Class containing data for all tissue nodes and tissue-tissue links. Is automatically initialized by class
         CellMech
@@ -268,7 +268,7 @@ class NodeConfiguration:
         :param isF0: bool, whether or not external forces are a part of the problem
         :param isanchor: bool, whether or not tissue cells are anchored to a x0-position
         :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
-            containing global values for the three constants
+            containing global values for the three constants in shape (k1, k2, k3) = (bend, twist, Hooke)
         """
         if dims == 2:
             self.updateLinkForces = lambda PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds: \
@@ -314,9 +314,9 @@ class NodeConfiguration:
             self.twist = np.zeros((self.N, self.N))          # torsion spring constant
             self.saveram = False
         else:
-            self.k = plasticity[0]
-            self.bend = plasticity[1]
-            self.twist = plasticity[2]
+            self.bend = plasticity[0]
+            self.twist = plasticity[1]
+            self.k = plasticity[2]
             self.saveram = True
         self.d0 = np.zeros((self.N, self.N))             # equilibrium distance between nodes,
         self.t = np.zeros((self.N, self.N, 3))           # tangent vector of link at node (a.k.a. "preferred direction")
@@ -621,7 +621,7 @@ class NodeConfiguration:
 
 
 class SubsConfiguration:
-    def __init__(self, num_cells, num_subs, d0_0, p_add, p_del, F_contr, dims=3, plasticity=(15., 10., 1.)):
+    def __init__(self, num_cells, num_subs, d0_0, p_add, p_del, F_contr, dims=3, plasticity=(10., 1., 15.)):
         """
         Class containing data for all substrate nodes and substrate-tissue links. Is automatically initialized by class
         CellMech if CellMech.issubs is not False. Substrate nodes behave like tissue nodes, but can only form links
@@ -635,7 +635,7 @@ class SubsConfiguration:
         :param dims: 2 or 3, the number of dimensions of the simulations
         :param F_contr: target value for contractile force
         :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
-            containing global values for the three constants
+            containing global values for the three constants in shape (k1, k2, k3) = (bend, twist, Hooke)
         """
         self.dims = dims
         # variables to store cell number and cell positions and angles
@@ -661,9 +661,9 @@ class SubsConfiguration:
             self.twist = np.zeros((self.N, self.Nsubs))          # torsion spring constant
             self.saveram = False
         else:
-            self.k = plasticity[0]
-            self.bend = plasticity[1]
-            self.twist = plasticity[2]
+            self.bend = plasticity[0]
+            self.twist = plasticity[1]
+            self.k = plasticity[2]
             self.saveram = True
         self.d0 = np.zeros((self.N, self.Nsubs))             # equilibrium distance between nodes
         self.d0_0 = d0_0                                     # global target equilibrium link length
@@ -960,7 +960,7 @@ class CellMech:
         :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent
             componentincluded.
         :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
-            containing global values for the three constants
+            containing global values for the three constants in shape (k1, k2, k3) = (bend, twist, Hooke)
         """
         self.dims = dims
         self.issubs = issubs

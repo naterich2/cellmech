@@ -22,13 +22,10 @@ if __name__ == '__main__':
     d0min = 0.8                 # min distance between cells when initialized
     d0max = 2.                  # max distance connected by links
     d0_0 = 1.                   # equilibrium distance of links (fundamental scaling of space)
-    p_add = 1.                  # rate to add cell-cell links
-    p_del = 0.2                 # rate to delete cell-cell links
 
     ####################
 
-    config = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add, p_del=p_del,
-                      d0max=d0max, dims=dims, issubs=False)
+    config = CellMech(N, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, d0max=d0max, dims=dims, issubs=False)
 
     # add pre-defined nodes and links between them
 

@@ -193,17 +193,16 @@ def animateconfigs(Simdata, SubsSimdata=None, record=False, recorddir="./movie/"
 
             yield
 
-def record_cleanup(recorddir="./movie", recordname="ani", fps=10):
+
+def record_cleanup(out_path="./movie", prefix="ani", fps=10):
     """
     Transform intermediate image files into a movie
-    :param recorddir: string, directory where the images are saved and the video should be save
-    :param recordname: string, prefix of the images and the video
+    :param out_path: string, directory where the images are saved and the video should be save
+    :param prefix: string, prefix of the images and the video
     :param fps: int, frames per second of the resulting video
     :return:
     """
-    out_path = recorddir
     out_path = os.path.abspath(out_path)
-    prefix = recordname
     ext = '.png'
     padding = 5
 
@@ -216,30 +215,30 @@ def record_cleanup(recorddir="./movie", recordname="ani", fps=10):
     [os.remove(out_path + "/" + f) for f in os.listdir(out_path) if f.endswith(ext)]
 
 
-def fetchdata(dir, skip=1):
+def fetchdata(fetchdir, toskip=1):
     """
     Loads data for simulation from files in directory "dir"
-    :param dir: string, name of directory holding data
-    :param skip: int, only use every skip-th simulation step for animation
+    :param fetchdir: string, name of directory holding data
+    :param toskip: int, only use every skip-th simulation step for animation
     :return: a) boolean value indicating if simulation data contains substrate information, b) tuple with data
         on node positions, links, forces on nodes, forces on links and time steps and c) if substrate exists:
         positions of substrate nodes, substrate links, forces on substrate nodes, forces on substrate links
     """
-    configs = np.load(dir + "/nodesr.npy")[::skip]
-    links = np.load(dir + "/links.npy")[::skip]
-    nodeforces = np.load(dir + "/nodesf.npy")[::skip]
-    linkforces = np.load(dir + "/linksf.npy")[::skip]
-    ts = np.load(dir + "/ts.npy")[::skip]
+    configs = np.load(fetchdir + "/nodesr.npy")[::toskip]
+    links = np.load(fetchdir + "/links.npy")[::toskip]
+    nodeforces = np.load(fetchdir + "/nodesf.npy")[::toskip]
+    linkforces = np.load(fetchdir + "/linksf.npy")[::toskip]
+    ts = np.load(fetchdir + "/ts.npy")[::toskip]
 
     try:     # try to include substrate details if they exists
-        subs = np.load(dir + "/subsnodesr.npy")[::skip]
-        subslinks = np.load(dir + "/subslinks.npy")[::skip]
-        subsnodeforces = np.load(dir + "/subsnodesf.npy")[::skip]
-        subslinkforces = np.load(dir + "/subslinksf.npy")[::skip]
+        subs = np.load(fetchdir + "/subsnodesr.npy")[::toskip]
+        subslinks = np.load(fetchdir + "/subslinks.npy")[::toskip]
+        subsnodeforces = np.load(fetchdir + "/subsnodesf.npy")[::toskip]
+        subslinkforces = np.load(fetchdir + "/subslinksf.npy")[::toskip]
 
         return True, (configs, links, nodeforces, linkforces, ts), (subs, subslinks, subsnodeforces, subslinkforces)
 
-    except IOError: # if no substrate results exist
+    except IOError:  # if no substrate results exist
         return False, (configs, links, nodeforces, linkforces, ts)
 
 
@@ -250,7 +249,7 @@ if __name__ == '__main__':
     ####################
 
     skip = 1                # only use every skip-th simulation step for animation
-    dir = "res"             # location of simulation results
+    datadir = "res"         # location of simulation results
     showsubs = False        # whether or not to visualize substrate nodes
 
     record = False          # whether or not to create and save a movie in oppose to only showing the animation
@@ -260,7 +259,7 @@ if __name__ == '__main__':
 
     ####################
 
-    simdata = fetchdata(dir, skip)
+    simdata = fetchdata(datadir, skip)
 
     if simdata[0]:
         animateconfigs(simdata[1], simdata[2],

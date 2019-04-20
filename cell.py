@@ -1,6 +1,9 @@
 from __future__ import division
 
-import sys, os, shutil, warnings
+import sys
+import os
+import shutil
+import warnings
 
 import numpy as np
 import numpy.random as npr
@@ -104,7 +107,7 @@ def getRotMat(Phis):
     Phis indicates the axis and direction of rotation, and its length is the angle of rotation
     """
     Axis, Theta = getNormtoo(Phis)  # calculate the angle of rotation
-    a = np.cos(Theta / 2)  #  filter for division by 0
+    a = np.cos(Theta / 2)  # filter for division by 0
     b, c, d = Axis * np.sin(Theta / 2)
     return np.array([[a * a + b * b - c * c - d * d, 2 * (b * c - a * d), 2 * (b * d + a * c)],
                     [2 * (b * c + a * d), a * a + c * c - b * b - d * d, 2 * (c * d - a * b)],
@@ -135,9 +138,9 @@ def VoronoiNeighbors(positions, vodims=2):
     return neighbors
 
 
-def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., force_limit=15., p_add=1.,
-                 p_del=0.2, p_add_subs=None, p_del_subs=None, chkx=False, d0max=2., dims=3, F_contr=1.,
-                 isF0=False, isanchor=False, issubs=False, force_contr=True):
+def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., p_add=1., p_del=0.2,
+                      p_add_subs=None, p_del_subs=None, c1=0.05, c2=0.1, c3=0.2, chkx=False, d0max=2., dims=3, F_contr=1.,
+                      isF0=False, isanchor=False, issubs=False, force_contr=True):
     """
     Create an instance of CellMech and set it up so that a simulation can be continued from where it was previously
     ended. Take special care if settings where changed in space or time (e.g. bend, twist or Hookean parameters),
@@ -151,25 +154,29 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
         mechanical equilibrium
     :param qmin: float, the square of the maximum force per cell until mechanical equilibration is cut off
     :param d0_0: float, the global equilibrium link length (d_0 in czirok2014cell)
-    :param force_limit: float, F* from czirok2014cell
     :param p_add: float, base probability for adding tissue-tissue links
     :param p_del: float, base probability for removing tissue-tissue links
     :param p_add_subs: float, base probability for adding tissue-substrate links
     :param p_del_subs: float, base probability for removing tissue-substrate links
+    :param c1: float, constant of contractility/volume exlusion
+    :param c2: float, constant of tissue elasticity
+    :param c3: float, the variance of the noise in updating the link lengths is 2 * (c2 ** 2) * dt were dt is the
+            time used for modifying a link
     :param chkx: bool, whether or not to check for link crossings (only functional for dims==2
     :param d0max: float, maximum cell-cell distance to allow a link to be added
     :param dims: 2 or 3, the number of dimensions of the simulations
+    :param F_contr: target force for force-dependent update of equilibrium lengths
     :param isF0: bool, whether or not external forces are a part of the problem
     :param isanchor: bool, whether or not tissue cells are anchored to a x0-position
     :param issubs: True (with substrate), False (without substrate) or "lonesome" (with substrate but only one
         tissue cell)
     :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent
-        componentincluded.
+        component included.
     :return: Initiated instance of CellMech
     """
 
-    c = CellMech(num_cells=num_cells, num_subs=num_subs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0,
-                 force_limit=force_limit, p_add=p_add, p_del=p_del, p_add_subs=p_add_subs, p_del_subs=p_del_subs,
+    c = CellMech(num_cells=num_cells, num_subs=num_subs, dt=dt, nmax=nmax, qmin=qmin, d0_0=d0_0, p_add=p_add,
+                 p_del=p_del, p_add_subs=p_add_subs, p_del_subs=p_del_subs, c1=c1, c2=c2, c3=c3,
                  chkx=chkx, d0max=d0max, dims=dims, F_contr=F_contr, isF0=isF0, isanchor=isanchor, issubs=issubs,
                  force_contr=force_contr)
 
@@ -253,8 +260,7 @@ def relaunch_CellMech(savedir, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.
 
 
 class NodeConfiguration:
-    def __init__(self, num, num_subs, d0_0, p_add, p_del, F_contr, dims=3, isF0=False, isanchor=False,
-                 plasticity=(10., 1., 15.)):
+    def __init__(self, num, num_subs, d0_0, p_add, p_del, c1, c2, c3, F_contr, dims, isF0, isanchor, plasticity):
         """
         Class containing data for all tissue nodes and tissue-tissue links. Is automatically initialized by class
         CellMech
@@ -263,6 +269,10 @@ class NodeConfiguration:
         :param d0_0: float, the global equilibrium link length (d_0 in czirok2014cell)
         :param p_add: float, base probability for adding tissue-tissue links
         :param p_del: float, base probability for removing tissue-tissue links
+        :param c1: float, constant of contractility/volume exlusion
+        :param c2: float, constant of tissue elasticity
+        :param c3: float, the variance of the noise in updating the link lengths is 2 * (c2 ** 2) * dt were dt is the
+            time used for modifying a link
         :param F_contr: target value for contractile force
         :param dims: 2 or 3, the number of dimensions of the simulations
         :param isF0: bool, whether or not external forces are a part of the problem
@@ -328,6 +338,9 @@ class NodeConfiguration:
 
         self.p_add = p_add
         self.p_del = p_del
+        self.c1 = c1
+        self.c2 = c2
+        self.c3 = c3
 
         # functions for randoms in default_update_d0
         self.lowers = np.tril_indices(self.N, -1)
@@ -365,7 +378,7 @@ class NodeConfiguration:
             self.nodesum = lambda: np.sum(self.Flink, axis=1) + self.F0 + \
                                    np.multiply(self.knode[..., None], (self.X0 - self.nodesX))
 
-    def addlink(self, ni, mi, t1=None, t2=None, d0=None, k=15., bend=10., twist=1., n=None, norm1=None, norm2=None):
+    def addlink(self, ni, mi, t1=None, t2=None, d0=None, bend=1., twist=1., k=1.5, n=None, norm1=None, norm2=None):
         """
         Add a new tissue-tissue link
         :param ni: integer, index of one of the cells involved in the link
@@ -373,9 +386,9 @@ class NodeConfiguration:
         :param t1: numpy array of shape (3), the vector tangential to the link at the surface of cell ni or None
         :param t2: numpy array of shape (3), the vector tangential to the link at the surface of cell mi or None
         :param d0: float, the link's initial equilibrium length. If None: set to current link length
-        :param k: float, the link's Hookean constant.
         :param bend: float, the link's bending rigidity
         :param twist: float, the link's twisting rigidity
+        :param k: float, the link's Hookean constant.
         :param n: numpy array of shape (3), the chosen normal vector, or None
         :param norm1: numpy array of shape (3), the chosen normal vector at cell ni. If None: set to n
         :param norm2: numpy array of shape (3), the chosen normal vector at cell mi. If None: set to n
@@ -435,7 +448,7 @@ class NodeConfiguration:
         self.t[ni, mi], self.t[mi, ni], self.norm[ni, mi], self.norm[mi, ni] = null, null, null, null
         self.d0[ni, mi], self.d0[mi, ni] = 0, 0
         if not self.saveram:
-            self.k[ni, mi], self.k[mi, ni]= 0, 0
+            self.k[ni, mi], self.k[mi, ni] = 0, 0
             self.bend[ni, mi], self.bend[mi, ni], self.twist[ni, mi], self.twist[mi, ni] = 0, 0, 0, 0
 
     def updateDists(self, X):
@@ -592,11 +605,10 @@ class NodeConfiguration:
         inds = np.where(allLinks0 > allLinks1)
         return allLinks0[inds], allLinks1[inds]
 
-    def update_d0(self, dt, stoch=0.2, force=True):
+    def update_d0(self, dt, force=True):
         """
         Update the equilibrium link length so that each link maintains a constant force
         :param dt: float, the time taken for the last plasticity step
-        :param stoch: float, the amplitude of the stochastic component
         :param force: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent component
         included.
         :return:
@@ -609,19 +621,16 @@ class NodeConfiguration:
 
         if force:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
-            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr) * dt * \
+            myd0 += self.c1 * ((self.Flink_tens[nodeinds]) - self.F_contr) * dt * \
                     0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
-            c2 = 0.1
-        else:
-            c2 = 0.2
 
-        myd0 += c2 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * self.randomsummand[nodeinds] - sqrt(dt))
+        myd0 += self.c2 * (self.d0_0 - myd0) * dt + self.c3 * sqrt(dt) * (2 * self.randomsummand[nodeinds] - 1)
 
         self.d0[nodeinds] = myd0
 
 
 class SubsConfiguration:
-    def __init__(self, num_cells, num_subs, d0_0, p_add, p_del, F_contr, dims=3, plasticity=(10., 1., 15.)):
+    def __init__(self, num_cells, num_subs, d0_0, p_add, p_del, c1, c2, c3, F_contr, plasticity):
         """
         Class containing data for all substrate nodes and substrate-tissue links. Is automatically initialized by class
         CellMech if CellMech.issubs is not False. Substrate nodes behave like tissue nodes, but can only form links
@@ -632,12 +641,14 @@ class SubsConfiguration:
         :param d0_0: float, the global equilibrium link length (d_0 in czirok 2014cell)
         :param p_add: float, base probability for adding tissue-tissue links
         :param p_del: float, base probability for removing tissue-tissue links
-        :param dims: 2 or 3, the number of dimensions of the simulations
+        :param c1: float, constant of contractility/volume exlusion
+        :param c2: float, constant of tissue elasticity
+        :param c3: float, the variance of the noise in updating the link lengths is 2 * (c2 ** 2) * dt were dt is the
+            time used for modifying a link
         :param F_contr: target value for contractile force
         :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
             containing global values for the three constants in shape (k1, k2, k3) = (bend, twist, Hooke)
         """
-        self.dims = dims
         # variables to store cell number and cell positions and angles
         self.N = num_cells
         self.N2 = 2 * self.N
@@ -679,13 +690,16 @@ class SubsConfiguration:
 
         self.p_add = p_add
         self.p_del = p_del
+        self.c1 = c1
+        self.c2 = c2
+        self.c3 = c3
 
         # stuff for documentation
         self.linksnap = []
         self.fnodesnap = []
         self.flinksnap = []
 
-    def addlink(self, ni, mi, cellx, cellphi, t1=None, d0=None, k=15., bend=10., twist=1.,
+    def addlink(self, ni, mi, cellx, cellphi, t1=None, d0=None, bend=1., twist=1., k=1.5,
                 n=None, norm1=None, norm2=None):
         """
         Add a new tissue-substrate link
@@ -696,9 +710,9 @@ class SubsConfiguration:
         :param t1: numpy array of shape (3), the vector tangential to the link at the surface of the substrate cell mi
             or None
         :param d0: float, the link's initial equilibrium length. If None: set to current link length
-        :param k: float, the link's Hookean constant.
         :param bend: float, the link's bending rigidity
         :param twist: float, the link's twisting rigidity
+        :param k: float, the link's Hookean constant.
         :param n: numpy array of shape (3), the chosen normal vector, or None
         :param norm1: numpy array of shape (3), the chosen normal vector at tissue cell ni. If None: set to n
         :param norm2: numpy array of shape (3), the chosen normal vector at substrate cell mi. If None: set to n
@@ -894,11 +908,10 @@ class SubsConfiguration:
         """
         return np.where(self.islink == True)
 
-    def update_d0(self, dt, stoch=0.2, force=True):
+    def update_d0(self, dt, force=True):
         """
         Update the equilibrium link length
         :param dt: float, the time taken for the last plasticity step
-        :param stoch: float, the amplitude of the stochastic component
         :param force: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent component
         included.
         :return:
@@ -910,21 +923,18 @@ class SubsConfiguration:
 
         if force:
             # lognorm fitted to match behavior for d0min==0.8, d0max==2.0 and d0_0==1.0
-            myd0 += 0.05 * (self.Flink_tens[nodeinds] - self.F_contr) * dt *\
+            myd0 += self.c1 * ((self.Flink_tens[nodeinds]) - self.F_contr) * dt *\
                     0.69 * lognorm.pdf(self.d[nodeinds], .7, loc=.7, scale=.5)
-            c2 = 0.1
-        else:
-            c2 = 0.2
 
-        myd0 += c2 * (self.d0_0 - myd0) * dt + stoch * (2 * sqrt(dt) * subsrandom - sqrt(dt))
+        myd0 += self.c2 * (self.d0_0 - myd0) * dt + self.c3 * sqrt(dt) * (2 * subsrandom - 1)
 
         self.d0[nodeinds] = myd0
 
 
 class CellMech:
-    def __init__(self, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., force_limit=15., p_add=1.,
-                 p_del=0.2, p_add_subs=None, p_del_subs=None, chkx=False, d0max=2., dims=3, F_contr=1.,
-                 isF0=False, isanchor=False, issubs=False, force_contr=True, plasticity=(15., 10., 1.)):
+    def __init__(self, num_cells, num_subs=0, dt=0.01, nmax=300, qmin=0.001, d0_0=1., p_add=1., p_del=0.2, c1=0.05,
+                 c2=0.1, c3=0.2, subs_scale=False, p_add_subs=None, p_del_subs=None, chkx=False, d0max=2., dims=3,
+                 F_contr=1., isF0=False, isanchor=False, issubs=False, force_contr=True, plasticity=(1., 1., 1.5)):
         """
         Implementation of model for cell-resolved, multiparticle model of plastic tissue deformations and morphogenesis
         first suggested by Czirok et al in 2014 (https://iopscience.iop.org/article/10.1088/1478-3975/12/1/016005/meta,
@@ -945,20 +955,24 @@ class CellMech:
             mechanical equilibrium
         :param qmin: float, the square of the maximum force per cell until mechanical equilibration is cut off
         :param d0_0: float, the global equilibrium link length (d_0 in czirok2014cell)
-        :param force_limit: float, F* from czirok2014cell
         :param p_add: float, base probability for adding tissue-tissue links
         :param p_del: float, base probability for removing tissue-tissue links
+        :param c1: float, constant of contractility/volume exlusion
+        :param c2: float, constant of tissue elasticity
+        :param c3: float, the variance of the noise in updating the link lengths is 2 * (c2 ** 2) * dt were dt is the
+            time used for modifying a link
         :param p_add_subs: float, base probability for adding tissue-substrate links
         :param p_del_subs: float, base probability for removing tissue-substrate links
         :param chkx: bool, whether or not to check for link crossings (only functional for dims==2
         :param d0max: float, maximum cell-cell distance to allow a link to be added
         :param dims: 2 or 3, the number of dimensions of the simulations
+        :param F_contr: target force for force-dependent update of equilibrium lengths
         :param isF0: bool, whether or not external forces are a part of the problem
         :param isanchor: bool, whether or not tissue cells are anchored to a x0-position
         :param issubs: True (with substrate), False (without substrate) or "lonesome" (with substrate but only one
             tissue cell)
         :param force_contr: boolean, if False: update done as suggested in czirok2014cell. if True: force-dependent
-            componentincluded.
+            component included.
         :param plasticity: Either None if Hookean, bend and twist constants are set individually per link, or tuple
             containing global values for the three constants in shape (k1, k2, k3) = (bend, twist, Hooke)
         """
@@ -977,7 +991,9 @@ class CellMech:
 
         # parameters to add/remove links
         self.d0_0 = d0_0
-        self.force_limit = force_limit
+        self.c1 = c1
+        self.c2 = c2
+        self.c3 = c3
         if self.dims == 2:
             self.chkx = chkx
         elif self.dims == 3:
@@ -992,7 +1008,8 @@ class CellMech:
         self.nsaves = 0
 
         # initialize instance of NodeConfiguration containing data on tissue cells
-        self.mynodes = NodeConfiguration(num=num_cells, num_subs=num_subs, p_add=p_add, p_del=p_del, F_contr=F_contr,
+        self.mynodes = NodeConfiguration(num=num_cells, num_subs=num_subs, p_add=p_add, p_del=p_del,
+                                         c1=c1, c2=c2, c3=c3, F_contr=F_contr,
                                          dims=dims, d0_0=d0_0, isF0=isF0, isanchor=isanchor, plasticity=plasticity)
 
         if self.issubs is True:
@@ -1002,8 +1019,16 @@ class CellMech:
                 p_add_subs = p_add
             if p_del_subs is None:
                 p_del_subs = p_del
-            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0, F_contr=F_contr,
-                                            p_add=p_add_subs, p_del=p_del_subs, plasticity=plasticity)
+            if subs_scale is False:
+                self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0,
+                                                c1=c1, c2=c2, c3=c3, F_contr=F_contr,
+                                                p_add=p_add_subs, p_del=p_del_subs, plasticity=plasticity)
+            else:
+                subsplasticity = (plasticity[0] / subs_scale, plasticity[1] / subs_scale, plasticity[2] / subs_scale)
+                self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0,
+                                                c1=c1, c2=c2, c3=c3, F_contr=F_contr,
+                                                p_add=p_add_subs, p_del=p_del_subs*subs_scale,
+                                                plasticity=subsplasticity)
             self.mechEquilibrium = lambda: self.mechEquilibrium_withsubs()
             self.makesnap = lambda t: self.makesnap_withsubs(t)
             self.addLinkList = lambda: self.addLinkList_withsubs()
@@ -1021,7 +1046,8 @@ class CellMech:
                 p_add_subs = p_add
             if p_del_subs is None:
                 p_del_subs = p_del
-            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0, F_contr=F_contr,
+            self.mysubs = SubsConfiguration(num_cells=num_cells, num_subs=num_subs, d0_0=d0_0,
+                                            c1=c1, c2=c2, c3=c3, F_contr=F_contr,
                                             p_add=p_add_subs, p_del=p_del_subs, plasticity=plasticity)
             self.mechEquilibrium = lambda: self.mechEquilibrium_lonesome()
             self.makesnap = lambda t: self.makesnap_lonesome(t)
@@ -1257,7 +1283,7 @@ class CellMech:
                 if self.mysubs.d[link[0], link[1]] < self.mysubs.d0[link[0], link[1]]:
                     continue        # compressed links are stable
                 f = scipy.linalg.norm(self.mysubs.Flink[link[0], link[1]])
-                p = exp(f / self.force_limit)
+                p = exp(f)
                 del_links.append(link)
                 del_probs.append(p * self.mysubs.p_del)
                 del_bools.append(True)  # is tissue-substrate link
@@ -1269,7 +1295,7 @@ class CellMech:
             if self.mynodes.d[link[0], link[1]] < self.mynodes.d0[link[0], link[1]]:
                 continue            # compressed links are stable
             f = scipy.linalg.norm(self.mynodes.Flink[link[0], link[1]])
-            p = exp(f / self.force_limit)
+            p = exp(f)
             del_links.append(link)
             del_probs.append(p * self.mynodes.p_del)
             del_bools.append(False)  # is tissue-tissue link
@@ -1396,7 +1422,7 @@ class CellMech:
         l_add, p_add, boo_add = to_add
         s2 = np.sum(p_add)
 
-        S = s1 + s2  # norm for probabilites
+        S = s1 + s2  # norm for probabilities
         if S < 1e-7:
             print "nothing to do!"
             return 1.
@@ -1518,6 +1544,7 @@ class CellMech:
         :param savephi: boolean, whether to save last phi configuration (only needed in case of later relaunch)
         :param savetang: boolean, whether to save last t (only needed in case of later relaunch)
         :param savenorm: boolean, whether to save last norm (only needed in case of later relaunch)
+        :param saved0: boolean, whether to save last d0 values (only needed in case of later relaunch)
         :return:
         """
         linklist = np.where(self.mynodes.islink == True)
@@ -1577,7 +1604,7 @@ class CellMech:
         templist = []
         savestr = savedir + "/" + savewhat
         for i in range(self.nsaves):
-            nstr = savestr +  "/" + str(i).zfill(3) + ".npy"
+            nstr = savestr + "/" + str(i).zfill(3) + ".npy"
             templist += list(np.load(nstr))
         np.save(savestr, templist)
         del templist
@@ -1680,8 +1707,8 @@ class CellMech:
         """
         Perform simulation run with only one step of mechanical equilibration and no tissue plasticity for a setup
         without a substrate
-        :return: Tuple of Node positions for all timesteps (numpy array), link configurations for each timestep (unchanged,
-        numpy array with identical entries along first axis), None, None, timesteps (numpy array)
+        :return: Tuple of Node positions for all timesteps (numpy array), link configurations for each timestep
+        (unchanged, numpy array with identical entries along first axis), None, None, timesteps (numpy array)
         """
         linkList = self.mynodes.getLinkList()
         # reshape X and Phi for solveivp
@@ -1707,7 +1734,7 @@ class CellMech:
         self.mynodes.nodesnap = np.transpose(x[:self.N, :, :], axes=(2, 0, 1))
         self.mynodes.nodesX = self.mynodes.nodesnap[-1]
         self.mynodes.linksnap = np.tile(linkList, (len(self.snaptimes), 1, 1))
-        return (self.mynodes.nodesnap, self.mynodes.linksnap, None, None, self.snaptimes)
+        return self.mynodes.nodesnap, self.mynodes.linksnap, None, None, self.snaptimes
 
     def oneequil_withsubs(self):
         """
@@ -1740,4 +1767,4 @@ class CellMech:
         x = res.y.reshape((-1, 3, len(res.t)))
         self.snaptimes = res.t
         self.mynodes.nodesnap = np.transpose(x[:self.N, :, :], axes=(2, 0, 1))
-        return (self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes)
+        return self.mynodes.nodesnap, np.tile(linkList, (len(self.snaptimes), 1, 1)), None, None, self.snaptimes

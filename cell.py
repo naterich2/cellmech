@@ -289,7 +289,7 @@ class NodeConfiguration:
                 self.updateLinkForces3D(PHI, T, Norm, NormT, Bend, Twist, K, D0, Nodeinds)
             self.dims = dims
         else:
-            print "Oops! Wrong number of dimensions here."
+            print("Oops! Wrong number of dimensions here.")
             sys.exit()
 
         self.dims = dims
@@ -1054,7 +1054,7 @@ class CellMech:
             self.addLinkList = lambda: self.addLinkList_lonesome()
         else:
             # catch incorrect choice of issubs
-            print "I don't know that type of subs"
+            print("I don't know that type of subs")
             sys.exit()
 
     def mechEquilibrium_nosubs(self):
@@ -1424,7 +1424,7 @@ class CellMech:
 
         S = s1 + s2  # norm for probabilities
         if S < 1e-7:
-            print "nothing to do!"
+            print("nothing to do!")
             return 1.
         dt = -log(npr.random()) / S
         if dt > 1:
@@ -1605,7 +1605,7 @@ class CellMech:
         savestr = savedir + "/" + savewhat
         for i in range(self.nsaves):
             nstr = savestr + "/" + str(i).zfill(3) + ".npy"
-            templist += list(np.load(nstr))
+            templist += list(np.load(nstr,allow_pickle=True))
         np.save(savestr, templist)
         del templist
         shutil.rmtree(savestr)

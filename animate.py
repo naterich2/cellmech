@@ -162,7 +162,7 @@ def animateconfigs(Simdata, SubsSimdata=None, record=False, recorddir="./movie/"
         try:
             os.mkdir(out_path)
         except OSError:
-            print "Too many levels in recorddir missing. Sorry!"
+            print("Too many levels in recorddir missing. Sorry!")
             sys.exit()
     out_path = os.path.abspath(out_path)
     prefix = recordname
@@ -208,7 +208,7 @@ def record_cleanup(out_path="./movie", prefix="ani", fps=10):
 
     ffmpeg_fname = os.path.join(out_path, '{}_%0{}d{}'.format(prefix, padding, ext))
     cmd = 'ffmpeg -f image2 -r {} -i {} -q:v 1 -vcodec mpeg4 -y {}/{}.mp4'.format(fps, ffmpeg_fname, out_path, prefix)
-    print cmd
+    print(cmd)
     subprocess.check_output(['bash', '-c', cmd])
 
     # Remove temp image files with extension
@@ -224,17 +224,17 @@ def fetchdata(fetchdir, toskip=1):
         on node positions, links, forces on nodes, forces on links and time steps and c) if substrate exists:
         positions of substrate nodes, substrate links, forces on substrate nodes, forces on substrate links
     """
-    configs = np.load(fetchdir + "/nodesr.npy")[::toskip]
-    links = np.load(fetchdir + "/links.npy")[::toskip]
-    nodeforces = np.load(fetchdir + "/nodesf.npy")[::toskip]
-    linkforces = np.load(fetchdir + "/linksf.npy")[::toskip]
-    ts = np.load(fetchdir + "/ts.npy")[::toskip]
+    configs = np.load(fetchdir + "/nodesr.npy",allow_pickle=True,encoding='bytes')[::toskip]
+    links = np.load(fetchdir + "/links.npy",allow_pickle=True,encoding='bytes')[::toskip]
+    nodeforces = np.load(fetchdir + "/nodesf.npy",allow_pickle=True,encoding='bytes')[::toskip]
+    linkforces = np.load(fetchdir + "/linksf.npy",allow_pickle=True,encoding='bytes')[::toskip]
+    ts = np.load(fetchdir + "/ts.npy",allow_pickle=True,encoding='bytes')[::toskip]
 
     try:     # try to include substrate details if they exists
-        subs = np.load(fetchdir + "/subsnodesr.npy")[::toskip]
-        subslinks = np.load(fetchdir + "/subslinks.npy")[::toskip]
-        subsnodeforces = np.load(fetchdir + "/subsnodesf.npy")[::toskip]
-        subslinkforces = np.load(fetchdir + "/subslinksf.npy")[::toskip]
+        subs = np.load(fetchdir + "/subsnodesr.npy",allow_pickle=True,encoding='bytes')[::toskip]
+        subslinks = np.load(fetchdir + "/subslinks.npy",allow_pickle=True,encoding='bytes')[::toskip]
+        subsnodeforces = np.load(fetchdir + "/subsnodesf.npy",allow_pickle=True,encoding='bytes')[::toskip]
+        subslinkforces = np.load(fetchdir + "/subslinksf.npy",allow_pickle=True,encoding='bytes')[::toskip]
 
         return True, (configs, links, nodeforces, linkforces, ts), (subs, subslinks, subsnodeforces, subslinkforces)
 
